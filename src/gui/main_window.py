@@ -1,0 +1,1587 @@
+import tkinter as tk
+from tkinter import ttk, messagebox, scrolledtext, filedialog
+import json
+import os
+import requests
+from datetime import datetime
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from models.case import Case
+from case_manager import CaseManager
+from settings_manager import SettingsManager
+
+class SOCCaseLogger:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("SOC Case Logger")
+        self.root.geometry("950x850")
+        # Warm, comfortable background color
+        self.root.configure(bg='#f5f2e8')
+        
+        # Initialize settings manager first
+        self.settings_manager = SettingsManager()
+        
+        # Initialize case manager with configured data directory
+        data_directory = self.settings_manager.get_data_directory()
+        cases_file_path = os.path.join(data_directory, 'cases.json')
+        self.case_manager = CaseManager(cases_file_path)
+        self.current_case = Case()
+        
+        # Create the main interface
+        self.create_widgets()
+        
+        # Add trace callbacks to automatically update header when fields change
+        # (Must be done after create_widgets where the variables are created)
+        self.user_var.trace('w', self.on_field_change)
+        self.email_var.trace('w', self.on_field_change)
+        self.role_var.trace('w', self.on_field_change)
+        self.host_var.trace('w', self.on_field_change)
+        
+        self.load_existing_cases()
+        
+        # Apply font settings after all widgets are created
+        self.apply_font_settings()
+        
+    def create_widgets(self):
+        # Create main frame
+        main_frame = ttk.Frame(self.root)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Create notebook (tab container)
+        self.notebook = ttk.Notebook(main_frame)
+        self.notebook.pack(fill=tk.BOTH, expand=True)
+        
+        # Create General tab
+        general_frame = ttk.Frame(self.notebook)
+        self.notebook.add(general_frame, text="General")
+        
+        # Create Search tab
+        search_frame = ttk.Frame(self.notebook)
+        self.notebook.add(search_frame, text="Search")
+        
+        # Create Settings tab
+        settings_frame = ttk.Frame(self.notebook)
+        self.notebook.add(settings_frame, text="Settings")
+        
+        # Create main content in General tab
+        self.create_main_content(general_frame)
+        
+        # Create search content in Search tab
+        self.create_search_content(search_frame)
+        
+        # Create settings content in Settings tab
+        self.create_settings_content(settings_frame)
+        
+    def create_main_content(self, parent_frame):
+        # Main content area (previously general tab)
+        content_frame = ttk.Frame(parent_frame)
+        content_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Left column - Fixed width, no expansion
+        left_frame = ttk.Frame(content_frame, width=350)
+        left_frame.pack(side=tk.LEFT, fill=tk.Y, expand=False, padx=5, pady=5)
+        left_frame.pack_propagate(False)  # Prevent frame from shrinking to fit contents
+        
+        # Details section (consolidated)
+        details_frame = ttk.LabelFrame(left_frame, text="Details")
+        details_frame.pack(fill=tk.X, pady=5)
+        
+        # Configure grid columns for proper layout
+        details_frame.grid_columnconfigure(1, weight=1)  # Make entry column expandable
+        
+        # User
+        ttk.Label(details_frame, text="User:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
+        self.user_var = tk.StringVar()
+        ttk.Entry(details_frame, textvariable=self.user_var, width=20).grid(row=0, column=1, sticky=tk.EW, padx=5, pady=2)
+        
+        # Email
+        ttk.Label(details_frame, text="Email:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
+        self.email_var = tk.StringVar()
+        ttk.Entry(details_frame, textvariable=self.email_var, width=20).grid(row=1, column=1, sticky=tk.EW, padx=5, pady=2)
+        
+        # Role
+        ttk.Label(details_frame, text="Role:").grid(row=2, column=0, sticky=tk.W, padx=5, pady=2)
+        self.role_var = tk.StringVar()
+        ttk.Entry(details_frame, textvariable=self.role_var, width=20).grid(row=2, column=1, sticky=tk.EW, padx=5, pady=2)
+        
+        # Hostname
+        ttk.Label(details_frame, text="Hostname:").grid(row=3, column=0, sticky=tk.W, padx=5, pady=2)
+        self.host_var = tk.StringVar()
+        ttk.Entry(details_frame, textvariable=self.host_var, width=20).grid(row=3, column=1, sticky=tk.EW, padx=5, pady=2)
+        
+        # Single Add button below hostname
+        ttk.Button(details_frame, text="Add", width=10, command=self.add_details_to_notes).grid(row=4, column=1, pady=10)
+
+        # Technical Information section
+        tech_frame = ttk.LabelFrame(left_frame, text="Technical Information")
+        tech_frame.pack(fill=tk.X, pady=5)
+        
+        # Configure grid columns for proper button visibility
+        tech_frame.grid_columnconfigure(1, weight=1)  # Make entry column expandable
+        
+        # IP Address
+        ttk.Label(tech_frame, text="IP Address:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
+        self.ip_var = tk.StringVar()
+        ttk.Entry(tech_frame, textvariable=self.ip_var, width=20).grid(row=0, column=1, sticky=tk.EW, padx=5, pady=2)
+        ttk.Button(tech_frame, text="Search", width=8, command=self.search_ip_abuseipdb).grid(row=0, column=2, padx=2, pady=2)
+        
+        # File Hash
+        ttk.Label(tech_frame, text="File Hash:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
+        self.file_hash_var = tk.StringVar()
+        ttk.Entry(tech_frame, textvariable=self.file_hash_var, width=15).grid(row=1, column=1, sticky=tk.EW, padx=5, pady=2)
+        ttk.Button(tech_frame, text="Scan", width=8, command=self.scan_hash_virustotal).grid(row=1, column=2, padx=2, pady=2)
+        
+        # URL section
+        url_frame = ttk.LabelFrame(left_frame, text="URL")
+        url_frame.pack(fill=tk.X, pady=5)
+        
+        # Configure grid columns for proper button visibility
+        url_frame.grid_columnconfigure(1, weight=1)  # Make entry column expandable
+        
+        # URL field
+        ttk.Label(url_frame, text="URL:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
+        self.url_var = tk.StringVar()
+        ttk.Entry(url_frame, textvariable=self.url_var, width=20).grid(row=0, column=1, sticky=tk.EW, padx=5, pady=2)
+        ttk.Button(url_frame, text="Defang", width=8, command=self.defang_url).grid(row=0, column=2, padx=2, pady=2)
+        
+        # Outcome section (moved from right side)
+        outcome_frame = ttk.LabelFrame(left_frame, text="Outcome")
+        outcome_frame.pack(fill=tk.X, pady=5)
+        
+        # First dropdown - Classification
+        ttk.Label(outcome_frame, text="Classification:").pack(anchor=tk.W, padx=5, pady=(5,0))
+        self.classification_var = tk.StringVar()
+        classification_combo = ttk.Combobox(outcome_frame, textvariable=self.classification_var, width=25, state='readonly')
+        classification_combo['values'] = ('Benign', 'Suspicious', 'Malicious')
+        classification_combo.pack(padx=5, pady=2)
+        classification_combo.set('Benign')
+        
+        # Second dropdown - Type
+        ttk.Label(outcome_frame, text="Type:").pack(anchor=tk.W, padx=5, pady=(5,0))
+        self.outcome_type_var = tk.StringVar()
+        outcome_type_combo = ttk.Combobox(outcome_frame, textvariable=self.outcome_type_var, width=25, state='readonly')
+        outcome_type_combo['values'] = ('False-Positive', 'Blocked-True Positive', 'Malicious-True Positive', 'Benign-True Positive')
+        outcome_type_combo.pack(padx=5, pady=2)
+        outcome_type_combo.set('False-Positive')
+        
+        # Add button
+        ttk.Button(outcome_frame, text="Add", width=10, command=self.add_outcome_to_notes).pack(pady=10)
+
+        # Create a frame for the text action buttons to arrange them horizontally
+        buttons_frame = ttk.Frame(left_frame)
+        buttons_frame.pack(fill=tk.X, pady=10)
+        
+        # Copy All button - centered with equal spacing
+        ttk.Button(buttons_frame, text="Copy All", width=12, command=self.copy_all_text).pack(side=tk.LEFT, expand=True, padx=10)
+        
+        # Clear button - centered with equal spacing
+        ttk.Button(buttons_frame, text="Clear", width=12, command=self.clear_all_text).pack(side=tk.LEFT, expand=True, padx=10)
+        
+        # Save Case button - full width underneath
+        ttk.Button(left_frame, text="Save Case", width=25, command=self.save_case, style='Success.TButton').pack(fill=tk.X, pady=(5, 10), padx=20)
+        
+        # Status bar - anchored to bottom (pack from bottom up)
+        self.status_var = tk.StringVar()
+        self.status_var.set("Ready")
+        status_bar = ttk.Label(left_frame, textvariable=self.status_var,
+                                foreground='#2c1810', anchor='center')
+        status_bar.pack(side=tk.BOTTOM, fill=tk.X, pady=(0, 10), padx=20)
+        
+        # Last Action title - anchored above status bar
+        ttk.Label(left_frame, text="Last Action", font=('Segoe UI', 15, 'bold'),
+                  foreground='#8b6914').pack(side=tk.BOTTOM, pady=(0, 5))
+        
+        # Right column - Expandable to fill remaining space
+        right_frame = ttk.Frame(content_frame)
+        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        # Notes section (now fills the entire right side)
+        notes_frame = ttk.LabelFrame(right_frame, text="Case Notes")
+        notes_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+
+        self.notes_text = scrolledtext.ScrolledText(notes_frame, wrap=tk.WORD, width=190, height=15,
+                                                     bg='#fefcf7',      # Light cream background
+                                                     fg='#2c1810',      # Dark brown text
+                                                     insertbackground='#2c1810',  # Cursor color
+                                                     selectbackground='#8b6914',  # Selection background
+                                                     selectforeground='#ffffff',  # Selection text color
+                                                     font=('Segoe UI', 10))
+        self.notes_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+    def create_search_content(self, parent_frame):
+        """Create the search tab content for finding saved cases"""
+        # Main search frame
+        search_main_frame = ttk.Frame(parent_frame)
+        search_main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Search controls frame
+        search_controls_frame = ttk.LabelFrame(search_main_frame, text="Search Criteria")
+        search_controls_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        # Configure grid columns
+        search_controls_frame.grid_columnconfigure(1, weight=1)
+        search_controls_frame.grid_columnconfigure(3, weight=1)
+        
+        # Search term input
+        ttk.Label(search_controls_frame, text="Search Term:").grid(row=0, column=0, sticky=tk.W, padx=(10, 5), pady=5)
+        self.search_term_var = tk.StringVar()
+        search_entry = ttk.Entry(search_controls_frame, textvariable=self.search_term_var, width=30)
+        search_entry.grid(row=0, column=1, sticky=tk.EW, padx=5, pady=5)
+        
+        # Search category dropdown
+        ttk.Label(search_controls_frame, text="Search In:").grid(row=0, column=2, sticky=tk.W, padx=(20, 5), pady=5)
+        self.search_category_var = tk.StringVar()
+        search_category_combo = ttk.Combobox(search_controls_frame, textvariable=self.search_category_var, 
+                                           width=15, state='readonly')
+        search_category_combo['values'] = ('All Fields', 'Case ID', 'User', 'Email', 'Hostname', 
+                                          'IP Address', 'File Hash', 'URL', 'Classification', 
+                                          'Outcome Type', 'Notes')
+        search_category_combo.grid(row=0, column=3, sticky=tk.EW, padx=5, pady=5)
+        search_category_combo.set('All Fields')
+        
+        # Search buttons frame
+        buttons_frame = ttk.Frame(search_controls_frame)
+        buttons_frame.grid(row=1, column=0, columnspan=4, pady=10)
+        
+        # Search and Clear buttons
+        ttk.Button(buttons_frame, text="Search Cases", command=self.perform_search, 
+                  style='Accent.TButton').pack(side=tk.LEFT, padx=5)
+        ttk.Button(buttons_frame, text="Clear Results", command=self.clear_search_results).pack(side=tk.LEFT, padx=5)
+        ttk.Button(buttons_frame, text="Load All Cases", command=self.load_all_cases).pack(side=tk.LEFT, padx=5)
+        
+        # Create a container for the two main sections to split space equally
+        content_container = ttk.Frame(search_main_frame)
+        content_container.pack(fill=tk.BOTH, expand=True)
+        
+        # Results frame - takes top half
+        results_frame = ttk.LabelFrame(content_container, text="Search Results")
+        results_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
+        
+        # Create treeview for search results
+        columns = ('Case ID', 'Date', 'User', 'Classification', 'Outcome', 'Notes Preview')
+        self.search_tree = ttk.Treeview(results_frame, columns=columns, show='headings', height=10)
+        
+        # Configure column headings and widths
+        self.search_tree.heading('Case ID', text='Case ID')
+        self.search_tree.heading('Date', text='Date')
+        self.search_tree.heading('User', text='User')
+        self.search_tree.heading('Classification', text='Classification')
+        self.search_tree.heading('Outcome', text='Outcome')
+        self.search_tree.heading('Notes Preview', text='Notes Preview')
+
+        # Set column widths
+        self.search_tree.column('Case ID', width=150, minwidth=120)
+        self.search_tree.column('Date', width=100, minwidth=80)
+        self.search_tree.column('User', width=120, minwidth=100)
+        self.search_tree.column('Classification', width=100, minwidth=80)
+        self.search_tree.column('Outcome', width=120, minwidth=100)
+        self.search_tree.column('Notes Preview', width=300, minwidth=200)
+        
+        # Add scrollbar for treeview
+        tree_scrollbar = ttk.Scrollbar(results_frame, orient=tk.VERTICAL, command=self.search_tree.yview)
+        self.search_tree.configure(yscrollcommand=tree_scrollbar.set)
+        
+        # Pack treeview and scrollbar
+        self.search_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(10, 0), pady=10)
+        tree_scrollbar.pack(side=tk.RIGHT, fill=tk.Y, padx=(0, 10), pady=10)
+        
+        # Bind double-click to load case
+        self.search_tree.bind('<Double-1>', self.load_selected_search_case)
+        
+        # Case details frame (shows details of selected case) - takes bottom half
+        details_frame = ttk.LabelFrame(content_container, text="Case Details")
+        details_frame.pack(fill=tk.BOTH, expand=True, pady=(5, 0))
+        
+        # Text widget to show full case details
+        self.search_details_text = scrolledtext.ScrolledText(details_frame, wrap=tk.WORD, height=12,
+                                                            bg='#fefcf7', fg='#2c1810',
+                                                            font=('Segoe UI', 11))
+        self.search_details_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=(10, 5))
+        
+        # Load button to transfer case to General tab
+        load_button_frame = ttk.Frame(details_frame)
+        load_button_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        ttk.Button(load_button_frame, text="Load Case to General Tab", 
+                  command=self.load_case_to_general, style='Success.TButton').pack(pady=5)
+
+    def create_settings_content(self, parent_frame):
+        """Create the settings tab content"""
+        # Main settings frame with scrollbar
+        settings_canvas = tk.Canvas(parent_frame, bg='#f5f2e8')
+        settings_scrollbar = ttk.Scrollbar(parent_frame, orient="vertical", command=settings_canvas.yview)
+        settings_scrollable_frame = ttk.Frame(settings_canvas)
+        
+        settings_scrollable_frame.bind(
+            "<Configure>",
+            lambda e: settings_canvas.configure(scrollregion=settings_canvas.bbox("all"))
+        )
+        
+        settings_canvas.create_window((0, 0), window=settings_scrollable_frame, anchor="nw")
+        settings_canvas.configure(yscrollcommand=settings_scrollbar.set)
+        
+        # Pack canvas and scrollbar
+        settings_canvas.pack(side="left", fill="both", expand=True, padx=10, pady=10)
+        settings_scrollbar.pack(side="right", fill="y")
+        
+        # API Settings Section
+        api_frame = ttk.LabelFrame(settings_scrollable_frame, text="API Settings")
+        api_frame.pack(fill=tk.X, pady=(0, 15), padx=10)
+        
+        # Load current API credentials
+        credentials = self.settings_manager.load_api_credentials()
+        
+        # AbuseIPDB API Key
+        ttk.Label(api_frame, text="AbuseIPDB API Key:").grid(row=0, column=0, sticky=tk.W, padx=10, pady=5)
+        self.abuseipdb_key_var = tk.StringVar(value=credentials.get("abuseipdb_api_key", ""))
+        abuseipdb_entry = ttk.Entry(api_frame, textvariable=self.abuseipdb_key_var, width=50, show="*")
+        abuseipdb_entry.grid(row=0, column=1, sticky=tk.EW, padx=5, pady=5)
+        ttk.Button(api_frame, text="Show", command=lambda: self.toggle_api_key_visibility(abuseipdb_entry)).grid(row=0, column=2, padx=5)
+        
+        # VirusTotal API Key
+        ttk.Label(api_frame, text="VirusTotal API Key:").grid(row=1, column=0, sticky=tk.W, padx=10, pady=5)
+        self.virustotal_key_var = tk.StringVar(value=credentials.get("virustotal_api_key", ""))
+        virustotal_entry = ttk.Entry(api_frame, textvariable=self.virustotal_key_var, width=50, show="*")
+        virustotal_entry.grid(row=1, column=1, sticky=tk.EW, padx=5, pady=5)
+        ttk.Button(api_frame, text="Show", command=lambda: self.toggle_api_key_visibility(virustotal_entry)).grid(row=1, column=2, padx=5)
+        
+        # API Timeout
+        ttk.Label(api_frame, text="Request Timeout (seconds):").grid(row=2, column=0, sticky=tk.W, padx=10, pady=5)
+        self.api_timeout_var = tk.StringVar(value=str(self.settings_manager.get_setting("api_settings", "request_timeout")))
+        timeout_spinbox = ttk.Spinbox(api_frame, from_=5, to=120, textvariable=self.api_timeout_var, width=10)
+        timeout_spinbox.grid(row=2, column=1, sticky=tk.W, padx=5, pady=5)
+        
+        # Configure grid weights
+        api_frame.grid_columnconfigure(1, weight=1)
+        
+        # Case Management Settings Section
+        case_mgmt_frame = ttk.LabelFrame(settings_scrollable_frame, text="Case Management Settings")
+        case_mgmt_frame.pack(fill=tk.X, pady=(0, 15), padx=10)
+        
+        # Case Retention Limit
+        ttk.Label(case_mgmt_frame, text="Case Retention Limit:").grid(row=0, column=0, sticky=tk.W, padx=10, pady=5)
+        self.retention_limit_var = tk.StringVar(value=str(self.settings_manager.get_setting("case_management", "case_retention_limit")))
+        retention_spinbox = ttk.Spinbox(case_mgmt_frame, from_=50, to=1000, increment=50, textvariable=self.retention_limit_var, width=10)
+        retention_spinbox.grid(row=0, column=1, sticky=tk.W, padx=5, pady=5)
+        ttk.Label(case_mgmt_frame, text="cases before creating new file").grid(row=0, column=2, sticky=tk.W, padx=5)
+        
+        # Date/Time Format
+        ttk.Label(case_mgmt_frame, text="Date/Time Format:").grid(row=1, column=0, sticky=tk.W, padx=10, pady=5)
+        self.date_format_var = tk.StringVar(value=self.settings_manager.get_setting("case_management", "date_format"))
+        date_format_combo = ttk.Combobox(case_mgmt_frame, textvariable=self.date_format_var, state='readonly', width=25)
+        date_format_combo['values'] = ('YYYY-MM-DD_HH:MM:SS', 'YYYYMMDD_HHMMSS', 'DD-MM-YYYY_HH:MM:SS', 'MM-DD-YYYY_HH:MM:SS')
+        date_format_combo.grid(row=1, column=1, sticky=tk.W, padx=5, pady=5)
+        
+        # Configure grid weights
+        case_mgmt_frame.grid_columnconfigure(1, weight=1)
+        
+        # Data and Export Settings Section
+        data_export_frame = ttk.LabelFrame(settings_scrollable_frame, text="Data and Export Settings")
+        data_export_frame.pack(fill=tk.X, pady=(0, 15), padx=10)
+        
+        # Save Location
+        ttk.Label(data_export_frame, text="Case Files Location:").grid(row=0, column=0, sticky=tk.W, padx=10, pady=5)
+        self.save_location_var = tk.StringVar(value=self.settings_manager.get_setting("data_export", "save_location"))
+        location_entry = ttk.Entry(data_export_frame, textvariable=self.save_location_var, width=50)
+        location_entry.grid(row=0, column=1, sticky=tk.EW, padx=5, pady=5)
+        ttk.Button(data_export_frame, text="Browse", command=self.browse_save_location).grid(row=0, column=2, padx=5)
+        
+        # Export Format
+        ttk.Label(data_export_frame, text="Export Format:").grid(row=1, column=0, sticky=tk.W, padx=10, pady=5)
+        self.export_format_var = tk.StringVar(value=self.settings_manager.get_setting("data_export", "export_format"))
+        export_format_combo = ttk.Combobox(data_export_frame, textvariable=self.export_format_var, state='readonly', width=15)
+        export_format_combo['values'] = ('JSON', 'CSV', 'XML')
+        export_format_combo.grid(row=1, column=1, sticky=tk.W, padx=5, pady=5)
+        
+        # Compression option
+        self.compress_files_var = tk.BooleanVar(value=self.settings_manager.get_setting("data_export", "compress_old_files"))
+        compress_check = ttk.Checkbutton(data_export_frame, text="Compress old case files", variable=self.compress_files_var)
+        compress_check.grid(row=2, column=0, columnspan=2, sticky=tk.W, padx=10, pady=5)
+        
+        # Backup settings
+        self.backup_enabled_var = tk.BooleanVar(value=self.settings_manager.get_setting("data_export", "backup_enabled"))
+        backup_check = ttk.Checkbutton(data_export_frame, text="Enable automatic backups", variable=self.backup_enabled_var)
+        backup_check.grid(row=3, column=0, columnspan=2, sticky=tk.W, padx=10, pady=5)
+        
+        # Backup location
+        ttk.Label(data_export_frame, text="Backup Location:").grid(row=4, column=0, sticky=tk.W, padx=10, pady=5)
+        self.backup_location_var = tk.StringVar(value=self.settings_manager.get_setting("data_export", "backup_location"))
+        backup_entry = ttk.Entry(data_export_frame, textvariable=self.backup_location_var, width=50)
+        backup_entry.grid(row=4, column=1, sticky=tk.EW, padx=5, pady=5)
+        ttk.Button(data_export_frame, text="Browse", command=self.browse_backup_location).grid(row=4, column=2, padx=5)
+        
+        # Configure grid weights
+        data_export_frame.grid_columnconfigure(1, weight=1)
+        
+        # Appearance Settings Section
+        appearance_frame = ttk.LabelFrame(settings_scrollable_frame, text="Appearance Settings")
+        appearance_frame.pack(fill=tk.X, pady=(0, 15), padx=10)
+
+        # Notes Text Font Family
+        ttk.Label(appearance_frame, text="Notes Font Family:").grid(row=0, column=0, sticky=tk.W, padx=10, pady=5)
+        self.notes_font_family_var = tk.StringVar(value=self.settings_manager.get_setting("appearance", "notes_font_family"))
+        notes_font_combo = ttk.Combobox(appearance_frame, textvariable=self.notes_font_family_var, state='readonly', width=20)
+        notes_font_combo['values'] = ('Segoe UI', 'Arial', 'Calibri', 'Consolas', 'Courier New', 'Times New Roman', 'Helvetica')
+        notes_font_combo.grid(row=0, column=1, sticky=tk.W, padx=5, pady=5)
+
+        # Notes Text Font Size
+        ttk.Label(appearance_frame, text="Notes Font Size:").grid(row=0, column=2, sticky=tk.W, padx=(20, 5), pady=5)
+        self.notes_font_size_var = tk.StringVar(value=str(self.settings_manager.get_setting("appearance", "notes_font_size")))
+        notes_size_spinbox = ttk.Spinbox(appearance_frame, from_=8, to=20, textvariable=self.notes_font_size_var, width=8)
+        notes_size_spinbox.grid(row=0, column=3, sticky=tk.W, padx=5, pady=5)
+        
+        # Note about font changes
+        ttk.Label(appearance_frame, text="Note: Font changes will be applied when you save settings.", 
+                 font=('Segoe UI', 15, 'italic')).grid(row=1, column=0, columnspan=4, pady=5, padx=10, sticky=tk.W)
+        
+        # Configure grid weights
+        appearance_frame.grid_columnconfigure(1, weight=1)
+        appearance_frame.grid_columnconfigure(3, weight=1)
+        
+        # Settings Control Buttons
+        buttons_frame = ttk.Frame(settings_scrollable_frame)
+        buttons_frame.pack(fill=tk.X, pady=15, padx=10)
+        
+        # Save Settings button
+        ttk.Button(buttons_frame, text="Save Settings", command=self.save_all_settings, 
+                  style='Success.TButton').pack(side=tk.LEFT, padx=5)
+        
+        # Reset to Defaults button
+        ttk.Button(buttons_frame, text="Reset to Defaults", command=self.reset_settings_to_defaults, 
+                  style='Urgent.TButton').pack(side=tk.LEFT, padx=5)
+        
+        # Export Settings button
+        ttk.Button(buttons_frame, text="Export Settings", command=self.export_settings).pack(side=tk.LEFT, padx=5)
+        
+        # Import Settings button
+        ttk.Button(buttons_frame, text="Import Settings", command=self.import_settings).pack(side=tk.LEFT, padx=5)
+
+    def update_notes_header(self):
+        """Update the notes header with consistent formatting, preserving existing entries"""
+        # Get current notes content
+        current_content = self.notes_text.get('1.0', tk.END).rstrip('\n')
+
+        # Split content to separate header from other text
+        lines = current_content.split('\n')
+        other_lines = []
+        
+        # Find where the header ends (look for lines that don't start with our fields)
+        header_fields = ['User:', 'Email:', 'Role:', 'Hostname:']
+        in_header = True
+        
+        for line in lines:
+            if in_header and any(line.startswith(field) for field in header_fields):
+                continue  # Skip existing header lines - we'll rebuild them
+            elif in_header and line.strip() == '':
+                continue  # Skip empty lines in header area
+            else:
+                in_header = False
+                other_lines.append(line)
+        
+        # Build new header in consistent order, including any existing values
+        new_header = []
+        
+        # Always check all fields and include them if they have values
+        user = self.user_var.get().strip()
+        if user:
+            new_header.append(f"User: {user}")
+        
+        email = self.email_var.get().strip()
+        if email:
+            new_header.append(f"Email: {email}")
+        
+        role = self.role_var.get().strip()
+        if role:
+            new_header.append(f"Role: {role}")
+        
+        hostname = self.host_var.get().strip()
+        if hostname:
+            new_header.append(f"Hostname: {hostname}")
+        
+        # Combine header with remaining content
+        if new_header:
+            if other_lines and any(line.strip() for line in other_lines):  # If there's other content
+                new_content = '\n'.join(new_header) + '\n\n' + '\n'.join(other_lines)
+            else:
+                new_content = '\n'.join(new_header)
+        else:
+            new_content = '\n'.join(other_lines) if other_lines else ''
+
+        # Update the notes text
+        self.notes_text.delete('1.0', tk.END)
+        self.notes_text.insert('1.0', new_content)
+
+    def on_field_change(self, *args):
+        """Callback when any field changes - updates header automatically"""
+        # This gets called when any traced variable changes
+        # We don't need to do anything here since the add buttons handle updates
+        pass
+
+    def add_details_to_notes(self):
+        """Add/update all detail information in the notes header"""
+        self.update_notes_header()
+
+        # Collect non-empty fields to provide status feedback
+        added_fields = []
+        if self.user_var.get().strip():
+            added_fields.append(f"User '{self.user_var.get().strip()}'")
+        if self.email_var.get().strip():
+            added_fields.append(f"Email '{self.email_var.get().strip()}'")
+        if self.role_var.get().strip():
+            added_fields.append(f"Role '{self.role_var.get().strip()}'")
+        if self.host_var.get().strip():
+            added_fields.append(f"Hostname '{self.host_var.get().strip()}'")
+        
+        if added_fields:
+            self.status_var.set(f"Added to notes: {', '.join(added_fields)}")
+        else:
+            self.status_var.set("All detail fields cleared from notes")
+
+    def add_outcome_to_notes(self):
+        """Add the selected outcome to the bottom of the notes text"""
+        classification = self.classification_var.get()
+        outcome_type = self.outcome_type_var.get()
+        
+        # Format the outcome as "Verdict: Classification, Type"
+        outcome_text = f"\nVerdict: {classification}, {outcome_type}"
+        
+        # Get current text and add the outcome to the bottom on a new line
+        current_text = self.notes_text.get('1.0', tk.END).rstrip('\n')
+        if current_text:
+            new_text = current_text + "\n" + outcome_text
+        else:
+            new_text = outcome_text
+
+        # Update the text area
+        self.notes_text.delete('1.0', tk.END)
+        self.notes_text.insert('1.0', new_text)        # Update status
+        self.status_var.set(f"Added verdict: {classification}, {outcome_type}")
+    
+    def defang_url(self):
+        """Defang the URL to make it non-clickable and safe"""
+        url = self.url_var.get().strip()
+        if not url:
+            messagebox.showwarning("Warning", "Please enter a URL to defang")
+            return
+        
+        # Defang the URL by:
+        # 1. Adding brackets around dots
+        # 2. Replacing http/https with hXXp/hXXps
+        # 3. Adding brackets around common TLDs
+        defanged = url
+        
+        # Replace protocols
+        defanged = defanged.replace('http://', 'hxxp://')
+        defanged = defanged.replace('https://', 'hxxps://')
+        defanged = defanged.replace('ftp://', 'fXp://')
+        
+        # Add brackets around dots
+        defanged = defanged.replace('.', '[.]')
+        
+        # Update the field with the defanged URL
+        self.url_var.set(defanged)
+
+        # Add defanged URL to notes
+        current_text = self.notes_text.get('1.0', tk.END).rstrip('\n')
+        defanged_text = f"\n{defanged}"
+        
+        if current_text:
+            new_text = current_text + defanged_text
+        else:
+            new_text = defanged_text.lstrip('\n')
+
+        self.notes_text.delete('1.0', tk.END)
+        self.notes_text.insert('1.0', new_text)
+
+        # Update status
+        self.status_var.set(f"URL defanged and added to notes")
+
+    def scan_hash_virustotal(self):
+        """Scan file hash using VirusTotal API and add results to notes"""
+        file_hash = self.file_hash_var.get().strip()
+        if not file_hash:
+            messagebox.showwarning("Warning", "Please enter a file hash to scan")
+            return
+        
+        try:
+            # Load API key from settings
+            credentials = self.settings_manager.load_api_credentials()
+            api_key = credentials.get("virustotal_api_key", "").strip()
+            
+            if not api_key:
+                messagebox.showerror("Error", "VirusTotal API key not found. Please configure it in Settings.")
+                return
+            
+            # Update status to show we're scanning
+            self.status_var.set(f"Scanning hash with VirusTotal: {file_hash[:16]}...")
+            self.root.update()
+            
+            # Make API request to VirusTotal
+            url = f'https://www.virustotal.com/api/v3/files/{file_hash}'
+            headers = {
+                'x-apikey': api_key
+            }
+            
+            response = requests.get(url, headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                if 'data' in data:
+                    file_data = data['data']['attributes']
+                    
+                    # Format the output
+                    result_text = f"\n\nVirusTotal Scan Results for: {file_hash}\n"
+                    
+                    # Basic file information
+                    result_text += f"File Type: {file_data.get('type_notes', 'Unknown')}\n"
+                    result_text += f"File Size: {file_data.get('size', 'Unknown')} bytes\n"
+                    result_text += f"MD5: {file_data.get('md5', 'N/A')}\n"
+                    result_text += f"SHA1: {file_data.get('sha1', 'N/A')}\n"
+                    result_text += f"SHA256: {file_data.get('sha256', 'N/A')}\n"
+                    
+                    # Scan statistics
+                    stats = file_data.get('last_analysis_stats', {})
+                    malicious = stats.get('malicious', 0)
+                    suspicious = stats.get('suspicious', 0)
+                    undetected = stats.get('undetected', 0)
+                    harmless = stats.get('harmless', 0)
+                    total_scans = malicious + suspicious + undetected + harmless
+                    
+                    result_text += f"\nScan Results:\n"
+                    result_text += f"Malicious: {malicious}/{total_scans}\n"
+                    result_text += f"Suspicious: {suspicious}/{total_scans}\n"
+                    result_text += f"Harmless: {harmless}/{total_scans}\n"
+                    result_text += f"Undetected: {undetected}/{total_scans}\n"
+                    
+                    # Get detection names from top AV vendors
+                    results = file_data.get('last_analysis_results', {})
+                    detections = []
+                    for engine, result in results.items():
+                        if result.get('category') == 'malicious':
+                            detection = result.get('result', 'Malware')
+                            detections.append(f"{engine}: {detection}")
+                    
+                    if detections:
+                        result_text += f"\nTop Detections:\n"
+                        # Show first 5 detections to avoid too much text
+                        for detection in detections[:5]:
+                            result_text += f"- {detection}\n"
+                        if len(detections) > 5:
+                            result_text += f"... and {len(detections) - 5} more detections\n"
+                    
+                    # Names if available
+                    names = file_data.get('names', [])
+                    if names:
+                        result_text += f"\nKnown Filenames:\n"
+                        for name in names[:3]:  # Show first 3 names
+                            result_text += f"- {name}\n"
+                        if len(names) > 3:
+                            result_text += f"... and {len(names) - 3} more names\n"
+
+                    # Add to notes
+                    current_text = self.notes_text.get('1.0', tk.END).rstrip('\n')
+                    if current_text:
+                        new_text = current_text + result_text
+                    else:
+                        new_text = result_text.rstrip('\n')
+
+                    self.notes_text.delete('1.0', tk.END)
+                    self.notes_text.insert('1.0', new_text)
+
+                    self.status_var.set(f"VirusTotal scan completed - {malicious}/{total_scans} detections")
+                    
+                else:
+                    messagebox.showerror("Error", "Invalid response from VirusTotal API")
+                    self.status_var.set("VirusTotal scan failed")
+                    
+            elif response.status_code == 404:
+                # Hash not found in VirusTotal database
+                result_text = f"\n\nVirusTotal Scan Results for: {file_hash}\n"
+                result_text += "Status: File not found in VirusTotal database\n"
+                result_text += "This hash has not been previously submitted to VirusTotal\n"
+
+                current_text = self.notes_text.get('1.0', tk.END).rstrip('\n')
+                if current_text:
+                    new_text = current_text + result_text
+                else:
+                    new_text = result_text.rstrip('\n')
+
+                self.notes_text.delete('1.0', tk.END)
+                self.notes_text.insert('1.0', new_text)
+
+                self.status_var.set("Hash not found in VirusTotal database")
+                
+            else:
+                messagebox.showerror("Error", f"VirusTotal API error: {response.status_code}")
+                self.status_var.set("VirusTotal scan failed")
+                
+        except requests.exceptions.RequestException as e:
+            messagebox.showerror("Error", f"Network error: {str(e)}")
+            self.status_var.set("VirusTotal scan failed - network error")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error scanning with VirusTotal: {str(e)}")
+            self.status_var.set("VirusTotal scan failed")
+    
+    def load_existing_cases(self):
+        # Load existing cases on startup
+        try:
+            cases = self.case_manager.get_all_cases()
+            self.status_var.set(f"Loaded {len(cases)} existing cases")
+        except Exception as e:
+            self.status_var.set("Ready - No existing cases")
+    
+    def search_ip_abuseipdb(self):
+        """Search IP address using AbuseIPDB API and add results to Notes"""
+        ip_address = self.ip_var.get().strip()
+        if not ip_address:
+            messagebox.showwarning("Warning", "Please enter an IP address to search")
+            return
+        
+        try:
+            # Load API key from settings
+            credentials = self.settings_manager.load_api_credentials()
+            api_key = credentials.get("abuseipdb_api_key", "").strip()
+            
+            if not api_key:
+                messagebox.showerror("Error", "AbuseIPDB API key not found. Please configure it in Settings.")
+                return
+            
+            # Update status to show we're searching
+            self.status_var.set(f"Searching AbuseIPDB for {ip_address}...")
+            self.root.update()
+            
+            # Make API request to AbuseIPDB
+            url = 'https://api.abuseipdb.com/api/v2/check'
+            querystring = {
+                'ipAddress': ip_address,
+                'maxAgeInDays': '90',
+                'verbose': ''
+            }
+            headers = {
+                'Accept': 'application/json',
+                'Key': api_key
+            }
+            
+            response = requests.get(url, headers=headers, params=querystring)
+            response.raise_for_status()
+            
+            data = response.json()
+            
+            if 'data' in data:
+                ip_data = data['data']
+                
+                # Format the output as requested
+                result_text = f"\n\n{ip_address}\n"
+                result_text += f"This IP was reported {ip_data.get('totalReports', 0)} times.\n"
+                result_text += f"Confidence of Abuse is {ip_data.get('abuseConfidencePercentage', 0)}%\n\n"
+                result_text += f"ISP: {ip_data.get('isp', 'Unknown')}\n"
+                result_text += f"Usage Type: {ip_data.get('usageType', 'Unknown')}\n"
+                result_text += f"ASN: {ip_data.get('asn', 'Unknown')}\n"
+                
+                # Handle multiple hostnames
+                hostnames = ip_data.get('hostnames', [])
+                if hostnames:
+                    result_text += f"Hostname(s): {', '.join(hostnames)}\n"
+                else:
+                    result_text += "Hostname(s): None\n"
+                
+                result_text += f"Domain Name: {ip_data.get('domain', 'Unknown')}\n"
+                
+                # Format country without flag
+                country_code = ip_data.get('countryCode', '')
+                country_name = ip_data.get('countryName', 'Unknown')
+                result_text += f"Country: {country_name}"
+                
+                # Add to notes
+                current_text = self.notes_text.get('1.0', tk.END).rstrip('\n')
+                if current_text:
+                    new_text = current_text + result_text
+                else:
+                    new_text = result_text.rstrip('\n')
+
+                self.notes_text.delete('1.0', tk.END)
+                self.notes_text.insert('1.0', new_text)
+
+                self.status_var.set(f"AbuseIPDB search completed for {ip_address}")
+                
+            else:
+                messagebox.showerror("Error", "Invalid response from AbuseIPDB API")
+                self.status_var.set("AbuseIPDB search failed")
+                
+        except requests.exceptions.RequestException as e:
+            messagebox.showerror("Error", f"Network error: {str(e)}")
+            self.status_var.set("AbuseIPDB search failed - network error")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error searching AbuseIPDB: {str(e)}")
+            self.status_var.set("AbuseIPDB search failed")
+    
+    def toggle_api_key_visibility(self, entry_widget):
+        """Toggle the visibility of API key in entry widget"""
+        if entry_widget['show'] == '*':
+            entry_widget['show'] = ''
+        else:
+            entry_widget['show'] = '*'
+    
+    def browse_save_location(self):
+        """Browse for case files save location"""
+        directory = filedialog.askdirectory(
+            title="Select Case Files Directory",
+            initialdir=self.save_location_var.get()
+        )
+        if directory:
+            self.save_location_var.set(directory)
+    
+    def browse_backup_location(self):
+        """Browse for backup location"""
+        directory = filedialog.askdirectory(
+            title="Select Backup Directory",
+            initialdir=self.backup_location_var.get() or os.path.expanduser("~")
+        )
+        if directory:
+            self.backup_location_var.set(directory)
+    
+    def save_all_settings(self):
+        """Save all settings to files"""
+        try:
+            # Save API credentials
+            credentials = {
+                "abuseipdb_api_key": self.abuseipdb_key_var.get().strip(),
+                "virustotal_api_key": self.virustotal_key_var.get().strip()
+            }
+            self.settings_manager.save_api_credentials(credentials)
+            
+            # Save application settings
+            self.settings_manager.set_setting("api_settings", "request_timeout", int(self.api_timeout_var.get()))
+            self.settings_manager.set_setting("case_management", "case_retention_limit", int(self.retention_limit_var.get()))
+            self.settings_manager.set_setting("case_management", "date_format", self.date_format_var.get())
+            
+            self.settings_manager.set_setting("data_export", "save_location", self.save_location_var.get())
+            self.settings_manager.set_setting("data_export", "export_format", self.export_format_var.get())
+            self.settings_manager.set_setting("data_export", "compress_old_files", self.compress_files_var.get())
+            self.settings_manager.set_setting("data_export", "backup_enabled", self.backup_enabled_var.get())
+            self.settings_manager.set_setting("data_export", "backup_location", self.backup_location_var.get())
+            
+            # Save appearance settings
+            self.settings_manager.set_setting("appearance", "notes_font_family", self.notes_font_family_var.get())
+            self.settings_manager.set_setting("appearance", "notes_font_size", int(self.notes_font_size_var.get()))
+
+            # Save settings to file
+            if self.settings_manager.save_settings():
+                # Reinitialize case manager with new data directory
+                self.reinitialize_case_manager()
+                
+                # Apply font changes after successful save
+                self.apply_font_settings()
+                self.status_var.set("Settings saved successfully")
+            else:
+                self.status_var.set("Failed to save settings")
+                
+        except ValueError as e:
+            self.status_var.set(f"Invalid input - please check your values: {str(e)}")
+        except Exception as e:
+            self.status_var.set(f"Error saving settings: {str(e)}")
+    
+    def reset_settings_to_defaults(self):
+        """Reset all settings to defaults"""
+        result = messagebox.askyesno("Reset Settings", 
+                                   "Are you sure you want to reset all settings to defaults?\n\n"
+                                   "This will not affect your saved API keys.")
+        if result:
+            # Reset to defaults (but keep API keys)
+            self.settings_manager.settings = self.settings_manager.default_settings.copy()
+            self.settings_manager.save_settings()
+            
+            # Update UI with default values
+            self.api_timeout_var.set(str(self.settings_manager.get_setting("api_settings", "request_timeout")))
+            self.retention_limit_var.set(str(self.settings_manager.get_setting("case_management", "case_retention_limit")))
+            self.date_format_var.set(self.settings_manager.get_setting("case_management", "date_format"))
+            self.save_location_var.set(self.settings_manager.get_setting("data_export", "save_location"))
+            self.export_format_var.set(self.settings_manager.get_setting("data_export", "export_format"))
+            self.compress_files_var.set(self.settings_manager.get_setting("data_export", "compress_old_files"))
+            self.backup_enabled_var.set(self.settings_manager.get_setting("data_export", "backup_enabled"))
+            self.backup_location_var.set(self.settings_manager.get_setting("data_export", "backup_location"))
+            
+            # Update appearance settings
+            self.notes_font_family_var.set(self.settings_manager.get_setting("appearance", "notes_font_family"))
+            self.notes_font_size_var.set(str(self.settings_manager.get_setting("appearance", "notes_font_size")))
+
+            self.status_var.set("Settings reset to defaults")
+    
+    def export_settings(self):
+        """Export settings to a file"""
+        file_path = filedialog.asksaveasfilename(
+            title="Export Settings",
+            defaultextension=".json",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+        )
+        if file_path:
+            if self.settings_manager.export_settings(file_path):
+                self.status_var.set(f"Settings exported to: {file_path}")
+            else:
+                self.status_var.set("Failed to export settings")
+    
+    def import_settings(self):
+        """Import settings from a file"""
+        file_path = filedialog.askopenfilename(
+            title="Import Settings",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+        )
+        if file_path:
+            result = messagebox.askyesno("Import Settings", 
+                                       "Importing settings will overwrite your current settings.\n"
+                                       "API keys will not be affected.\n\n"
+                                       "Do you want to continue?")
+            if result:
+                if self.settings_manager.import_settings(file_path):
+                    self.status_var.set("Settings imported successfully - restart application for full effect")
+                else:
+                    self.status_var.set("Failed to import settings")
+    
+    def copy_all_text(self):
+        """Copy all text from the notes text area to the clipboard"""
+        text_content = self.notes_text.get('1.0', tk.END).strip()
+        if not text_content:
+            self.status_var.set("No text to copy - text area is empty")
+            return
+        
+        # Copy to clipboard
+        self.root.clipboard_clear()
+        self.root.clipboard_append(text_content)
+        self.root.update()  # Ensure clipboard is updated
+        
+        # Update status
+        char_count = len(text_content)
+        self.status_var.set(f"Copied {char_count} characters to clipboard")
+    
+    def clear_all_text(self):
+        """Clear all text from the notes text area with confirmation"""
+        text_content = self.notes_text.get('1.0', tk.END).strip()
+        if not text_content:
+            self.status_var.set("Text area is already empty")
+            return
+        
+        # Ask for confirmation
+        result = messagebox.askyesno("Clear Text", 
+                                   "Are you sure you want to clear all text from the notes area?\n\nThis action cannot be undone.")
+        
+        if result:
+            self.notes_text.delete('1.0', tk.END)
+            self.status_var.set("Case notes cleared")
+        else:
+            self.status_var.set("Clear operation cancelled")
+    
+    def save_case(self):
+        """Save the current case information to a JSON file in the data folder"""
+        try:
+            # Generate case ID with timestamp using settings format
+            timestamp = datetime.now()
+            date_format = self.settings_manager.get_case_id_format()
+            case_id = f"SOC-{timestamp.strftime(date_format)}"
+            
+            # Collect all case data
+            case_data = {
+                "case_id": case_id,
+                "timestamp": timestamp.isoformat(),
+                "created_date": timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                "details": {
+                    "user": self.user_var.get().strip(),
+                    "role": self.role_var.get().strip(),
+                    "email": self.email_var.get().strip(),
+                    "hostname": self.host_var.get().strip(),
+                    "ip_address": self.ip_var.get().strip(),
+                    "file_hash": self.file_hash_var.get().strip(),
+                    "url": self.url_var.get().strip()
+                },
+                "outcome": {
+                    "classification": self.classification_var.get(),
+                    "outcome_type": self.outcome_type_var.get()
+                },
+                "notes": self.notes_text.get('1.0', tk.END).rstrip('\n'),
+                "status": "completed"
+            }
+            
+            # Determine data folder path from settings
+            data_folder = self.settings_manager.get_data_directory()
+            
+            # Create individual case file
+            case_filename = f"{case_id}.json"
+            case_filepath = os.path.join(data_folder, case_filename)
+            
+            # Save individual case file
+            with open(case_filepath, 'w', encoding='utf-8') as f:
+                json.dump(case_data, f, indent=2, ensure_ascii=False)
+            
+            # Also update the main cases.json file for compatibility
+            cases_filepath = os.path.join(data_folder, 'cases.json')
+            
+            # Read existing cases
+            if os.path.exists(cases_filepath):
+                with open(cases_filepath, 'r', encoding='utf-8') as f:
+                    try:
+                        all_cases = json.load(f)
+                    except json.JSONDecodeError:
+                        all_cases = []
+            else:
+                all_cases = []
+            
+            # Add new case to the list
+            all_cases.append(case_data)
+            
+            # Save updated cases list
+            with open(cases_filepath, 'w', encoding='utf-8') as f:
+                json.dump(all_cases, f, indent=2, ensure_ascii=False)
+            
+            # Update status and show confirmation
+            self.status_var.set(f"Case saved successfully: {case_id}")
+            
+            # Show success message with file location
+            messagebox.showinfo("Case Saved", 
+                              f"Case saved successfully!\n\n"
+                              f"Case ID: {case_id}\n"
+                              f"File: {case_filename}\n"
+                              f"Location: {data_folder}")
+            
+        except Exception as e:
+            # Handle any errors during save
+            error_msg = f"Error saving case: {str(e)}"
+            self.status_var.set("Failed to save case")
+            messagebox.showerror("Save Error", error_msg)
+    
+    def perform_search(self):
+        """Search through saved cases based on user input"""
+        search_term = self.search_term_var.get().strip().lower()
+        search_category = self.search_category_var.get()
+        
+        if not search_term and search_category == 'All Fields':
+            messagebox.showwarning("Search", "Please enter a search term")
+            return
+        
+        try:
+            # Load cases from JSON file using configured data directory
+            data_folder = self.settings_manager.get_data_directory()
+            cases_filepath = os.path.join(data_folder, 'cases.json')
+            
+            if not os.path.exists(cases_filepath):
+                messagebox.showinfo("Search", "No saved cases found")
+                return
+            
+            with open(cases_filepath, 'r', encoding='utf-8') as f:
+                all_cases = json.load(f)
+            
+            if not all_cases:
+                messagebox.showinfo("Search", "No saved cases found")
+                return
+            
+            # Clear previous results
+            self.clear_search_results()
+            
+            # Filter cases based on search criteria
+            matching_cases = []
+            for case in all_cases:
+                if self.case_matches_search(case, search_term, search_category):
+                    matching_cases.append(case)
+            
+            # Populate treeview with results
+            for case in matching_cases:
+                # Format the data for display
+                case_id = case.get('case_id', 'N/A')
+                date = case.get('created_date', case.get('timestamp', 'N/A'))[:10]  # Just date part
+                user = case.get('details', {}).get('user', 'N/A')
+                classification = case.get('outcome', {}).get('classification', 'N/A')
+                outcome_type = case.get('outcome', {}).get('outcome_type', 'N/A')
+                notes = case.get('notes', '')
+
+                # Truncate notes for preview
+                notes_preview = notes[:100] + "..." if len(notes) > 100 else notes
+                notes_preview = notes_preview.replace('\n', ' ')  # Remove newlines for table display
+
+                # Insert into treeview
+                self.search_tree.insert('', tk.END, values=(
+                    case_id, date, user, classification, outcome_type, notes_preview
+                ), tags=(case_id,))  # Store case_id as tag for later retrieval
+            
+            # Update status
+            count = len(matching_cases)
+            self.status_var.set(f"Found {count} matching case{'s' if count != 1 else ''}")
+            
+            if count == 0:
+                messagebox.showinfo("Search Results", "No cases found matching your search criteria")
+            
+        except Exception as e:
+            messagebox.showerror("Search Error", f"Error searching cases: {str(e)}")
+            self.status_var.set("Search failed")
+    
+    def case_matches_search(self, case, search_term, search_category):
+        """Check if a case matches the search criteria"""
+        if not search_term:  # If no search term, match all
+            return True
+        
+        search_term = search_term.lower()
+        
+        if search_category == 'All Fields':
+            # Search in all text fields
+            searchable_text = ' '.join([
+                case.get('case_id', ''),
+                case.get('details', {}).get('user', ''),
+                case.get('details', {}).get('email', ''),
+                case.get('details', {}).get('role', ''),
+                case.get('details', {}).get('hostname', ''),
+                case.get('details', {}).get('ip_address', ''),
+                case.get('details', {}).get('file_hash', ''),
+                case.get('details', {}).get('url', ''),
+                case.get('outcome', {}).get('classification', ''),
+                case.get('outcome', {}).get('outcome_type', ''),
+                case.get('notes', '')
+            ]).lower()
+            return search_term in searchable_text
+        
+        # Search in specific field
+        field_mapping = {
+            'Case ID': case.get('case_id', ''),
+            'User': case.get('details', {}).get('user', ''),
+            'Email': case.get('details', {}).get('email', ''),
+            'Hostname': case.get('details', {}).get('hostname', ''),
+            'IP Address': case.get('details', {}).get('ip_address', ''),
+            'File Hash': case.get('details', {}).get('file_hash', ''),
+            'URL': case.get('details', {}).get('url', ''),
+            'Classification': case.get('outcome', {}).get('classification', ''),
+            'Outcome Type': case.get('outcome', {}).get('outcome_type', ''),
+            'Notes': case.get('notes', '')
+        }
+        
+        field_value = field_mapping.get(search_category, '').lower()
+        return search_term in field_value
+    
+    def clear_search_results(self):
+        """Clear search results and details"""
+        for item in self.search_tree.get_children():
+            self.search_tree.delete(item)
+        self.search_details_text.delete('1.0', tk.END)
+        self.status_var.set("Search results cleared")
+    
+    def load_all_cases(self):
+        """Load and display all saved cases"""
+        try:
+            data_folder = self.settings_manager.get_data_directory()
+            cases_filepath = os.path.join(data_folder, 'cases.json')
+            
+            if not os.path.exists(cases_filepath):
+                messagebox.showinfo("Load Cases", "No saved cases found")
+                return
+            
+            with open(cases_filepath, 'r', encoding='utf-8') as f:
+                all_cases = json.load(f)
+            
+            # Clear previous results
+            self.clear_search_results()
+            
+            # Populate treeview with all cases
+            for case in all_cases:
+                case_id = case.get('case_id', 'N/A')
+                date = case.get('created_date', case.get('timestamp', 'N/A'))[:10]
+                user = case.get('details', {}).get('user', 'N/A')
+                classification = case.get('outcome', {}).get('classification', 'N/A')
+                outcome_type = case.get('outcome', {}).get('outcome_type', 'N/A')
+                notes = case.get('notes', '')
+
+                notes_preview = notes[:100] + "..." if len(notes) > 100 else notes
+                notes_preview = notes_preview.replace('\n', ' ')
+
+                self.search_tree.insert('', tk.END, values=(
+                    case_id, date, user, classification, outcome_type, notes_preview
+                ), tags=(case_id,))
+            
+            count = len(all_cases)
+            self.status_var.set(f"Loaded {count} case{'s' if count != 1 else ''}")
+            
+        except Exception as e:
+            messagebox.showerror("Load Error", f"Error loading cases: {str(e)}")
+    
+    def load_selected_search_case(self, event):
+        """Load the selected case details when clicked in search results"""
+        selection = self.search_tree.selection()
+        if not selection:
+            return
+        
+        # Get the case ID from the selected item
+        item = self.search_tree.item(selection[0])
+        case_id = item['values'][0]
+        
+        try:
+            # Load the specific case data using configured data directory
+            data_folder = self.settings_manager.get_data_directory()
+            cases_filepath = os.path.join(data_folder, 'cases.json')
+            
+            with open(cases_filepath, 'r', encoding='utf-8') as f:
+                all_cases = json.load(f)
+            
+            # Find the selected case
+            selected_case = None
+            for case in all_cases:
+                if case.get('case_id') == case_id:
+                    selected_case = case
+                    break
+            
+            if selected_case:
+                # Store the selected case for potential loading to General tab
+                self.selected_search_case = selected_case
+                
+                # Display case details
+                self.display_case_details(selected_case)
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Error loading case details: {str(e)}")
+    
+    def display_case_details(self, case):
+        """Display full case details in the details text area"""
+        self.search_details_text.delete('1.0', tk.END)
+        
+        details = []
+        details.append(f"Case ID: {case.get('case_id', 'N/A')}")
+        details.append(f"Date: {case.get('created_date', 'N/A')}")
+        details.append("")
+        
+        # Case details
+        case_details = case.get('details', {})
+        details.append("=== CASE DETAILS ===")
+        details.append(f"User: {case_details.get('user', 'N/A')}")
+        details.append(f"Role: {case_details.get('role', 'N/A')}")
+        details.append(f"Email: {case_details.get('email', 'N/A')}")
+        details.append(f"Hostname: {case_details.get('hostname', 'N/A')}")
+        details.append(f"IP Address: {case_details.get('ip_address', 'N/A')}")
+        details.append(f"File Hash: {case_details.get('file_hash', 'N/A')}")
+        details.append(f"URL: {case_details.get('url', 'N/A')}")
+        details.append("")
+        
+        # Outcome
+        outcome = case.get('outcome', {})
+        details.append("=== OUTCOME ===")
+        details.append(f"Classification: {outcome.get('classification', 'N/A')}")
+        details.append(f"Outcome Type: {outcome.get('outcome_type', 'N/A')}")
+        details.append("")
+
+        # Notes
+        details.append("=== NOTES ===")
+        details.append(case.get('notes', 'No notes available'))
+
+        # Insert all details
+        self.search_details_text.insert('1.0', '\n'.join(details))
+    
+    def load_case_to_general(self):
+        """Load the selected case data to the General tab for editing"""
+        if not hasattr(self, 'selected_search_case') or not self.selected_search_case:
+            messagebox.showwarning("Load Case", "Please select a case from the search results first")
+            return
+        
+        case = self.selected_search_case
+        case_details = case.get('details', {})
+        outcome = case.get('outcome', {})
+        
+        # Load data into General tab fields
+        self.user_var.set(case_details.get('user', ''))
+        self.role_var.set(case_details.get('role', ''))
+        self.email_var.set(case_details.get('email', ''))
+        self.host_var.set(case_details.get('hostname', ''))
+        self.ip_var.set(case_details.get('ip_address', ''))
+        self.file_hash_var.set(case_details.get('file_hash', ''))
+        self.url_var.set(case_details.get('url', ''))
+        self.classification_var.set(outcome.get('classification', 'Benign'))
+        self.outcome_type_var.set(outcome.get('outcome_type', 'False-Positive'))
+
+        # Load notes
+        self.notes_text.delete('1.0', tk.END)
+        notes_content = case.get('notes', '')
+        if notes_content:
+            self.notes_text.insert('1.0', notes_content)
+
+        # Switch to General tab
+        self.notebook.select(0)
+        
+        # Update status
+        case_id = case.get('case_id', 'Unknown')
+        self.status_var.set(f"Loaded case {case_id} to General tab")
+        messagebox.showinfo("Case Loaded", f"Case {case_id} has been loaded to the General tab")
+    
+    def get_case_info_text(self):
+        """Generate formatted text of all case information"""
+        info = []
+        info.append(f"User: {self.user_var.get()}")
+        info.append(f"Role: {self.role_var.get()}")
+        info.append(f"Email: {self.email_var.get()}")
+        info.append(f"Hostname: {self.host_var.get()}")
+        info.append(f"IP Address: {self.ip_var.get()}")
+        info.append(f"File Hash: {self.file_hash_var.get()}")
+        info.append(f"Classification: {self.classification_var.get()}")
+        info.append(f"Outcome Type: {self.outcome_type_var.get()}")
+        info.append(f"Notes: {self.notes_text.get('1.0', tk.END).strip()}")
+        return "\n".join(info)
+    
+    def new_case(self):
+        """Create a new case"""
+        # Clear all fields
+        self.user_var.set("")
+        self.role_var.set("")
+        self.email_var.set("")
+        self.host_var.set("")
+        self.ip_var.set("")
+        self.file_hash_var.set("")
+        self.url_var.set("")
+        self.classification_var.set("Benign")
+        self.outcome_type_var.set("False-Positive")
+        self.notes_text.delete('1.0', tk.END)
+
+        # Generate new case ID
+        new_id = f"SOC-{datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}"
+        
+        self.current_case = Case()
+        self.current_case.case_id = new_id
+        self.status_var.set("New case created")
+        messagebox.showinfo("New Case", f"New case created with ID: {new_id}")
+    
+    def load_case_data(self, case):
+        """Load case data into the form"""
+        self.current_case = case
+        self.user_var.set(case.user)
+        self.role_var.set(case.role)
+        self.email_var.set(case.email)
+        self.host_var.set(case.host)
+        self.ip_var.set(case.ip_address)
+        self.file_hash_var.set(case.file_hash)
+        # For backward compatibility, try to parse the old outcome format
+        if hasattr(case, 'outcome') and case.outcome:
+            # Try to split the outcome if it contains a comma
+            if ',' in case.outcome:
+                parts = [part.strip() for part in case.outcome.split(',')]
+                if len(parts) >= 2:
+                    self.classification_var.set(parts[0])
+                    self.outcome_type_var.set(parts[1])
+                else:
+                    # Default values if parsing fails
+                    self.classification_var.set("Benign")
+                    self.outcome_type_var.set("False-Positive")
+            else:
+                # Map old values to new format
+                if case.outcome == "Normal Activity":
+                    self.classification_var.set("Benign")
+                    self.outcome_type_var.set("Benign-True Positive")
+                elif case.outcome == "Suspicious Activity":
+                    self.classification_var.set("Suspicious")
+                    self.outcome_type_var.set("Blocked-True Positive")
+                elif case.outcome == "Incident Confirmed":
+                    self.classification_var.set("Malicious")
+                    self.outcome_type_var.set("Malicious-True Positive")
+                elif case.outcome == "False Positive":
+                    self.classification_var.set("Benign")
+                    self.outcome_type_var.set("False-Positive")
+                else:
+                    self.classification_var.set("Benign")
+                    self.outcome_type_var.set("False-Positive")
+        else:
+            self.classification_var.set("Benign")
+            self.outcome_type_var.set("False-Positive")
+        self.notes_text.delete('1.0', tk.END)
+        if hasattr(case, 'notes') and case.notes:
+            self.notes_text.insert('1.0', case.notes)
+
+        self.status_var.set(f"Loaded case {case.case_id}")
+    
+    def search_cases(self):
+        """Search for cases"""
+        search_term = self.search_var.get().lower()
+        if not search_term:
+            messagebox.showwarning("Warning", "Please enter a search term")
+            return
+        
+        # Clear previous results
+        for item in self.search_tree.get_children():
+            self.search_tree.delete(item)
+        
+        # Search cases
+        cases = self.case_manager.search_cases(search_term)
+        
+        for case in cases:
+            self.search_tree.insert('', tk.END, values=(
+                case.case_id,
+                case.title,
+                case.status,
+                case.user,
+                case.created_at[:10]  # Just the date part
+            ))
+        
+        self.status_var.set(f"Found {len(cases)} matching cases")
+    
+    def load_selected_case(self, event):
+        """Load the selected case from search results"""
+        selection = self.search_tree.selection()
+        if selection:
+            item = self.search_tree.item(selection[0])
+            case_id = item['values'][0]
+            case = self.case_manager.get_case(case_id)
+            if case:
+                self.load_case_data(case)
+                self.notebook.select(0)  # Switch to General tab
+    
+    def load_existing_cases(self):
+        """Load existing cases on startup"""
+        try:
+            cases = self.case_manager.get_all_cases()
+            self.status_var.set(f"Loaded {len(cases)} existing cases")
+        except Exception as e:
+            self.status_var.set("Ready - No existing cases")
+    
+    def reinitialize_case_manager(self):
+        """Reinitialize the case manager with the current data directory setting"""
+        try:
+            data_directory = self.settings_manager.get_data_directory()
+            cases_file_path = os.path.join(data_directory, 'cases.json')
+            self.case_manager = CaseManager(cases_file_path)
+            self.status_var.set(f"Updated case data location to: {data_directory}")
+        except Exception as e:
+            self.status_var.set(f"Error updating case data location: {str(e)}")
+    
+    def apply_font_settings(self):
+        """Apply font settings to the notes text widget"""
+        try:
+            notes_font_family = self.settings_manager.get_setting("appearance", "notes_font_family")
+            notes_font_size = self.settings_manager.get_setting("appearance", "notes_font_size")
+            
+            # Provide defaults if settings return None
+            if notes_font_family is None:
+                notes_font_family = "Segoe UI"
+            if notes_font_size is None:
+                notes_font_size = 10
+                
+            self.notes_text.configure(font=(notes_font_family, notes_font_size))
+        except Exception as e:
+            print(f"Error applying font settings: {e}")
+            # Apply default font as fallback
+            self.notes_text.configure(font=("Segoe UI", 10))
+
+def main():
+    root = tk.Tk()
+    
+    # Warm color palette
+    warm_bg = '#f5f2e8'      # Warm cream background
+    warm_accent = '#8b6914'   # Warm golden brown
+    warm_text = '#2c1810'     # Dark brown text
+    warm_entry = '#fefcf7'    # Very light cream for entry fields
+    warm_frame = '#ede8dc'    # Slightly darker cream for frames
+    warm_button = '#b8860b'   # Dark golden rod for buttons
+    warm_button_text = '#ffffff'  # White text on buttons
+    
+    # Set the main window background first
+    root.configure(bg=warm_bg)
+    
+    # Configure warm, professional theme
+    style = ttk.Style()
+    
+    # Try different themes to find one that accepts custom colors better
+    available_themes = style.theme_names()
+    if 'alt' in available_themes:
+        style.theme_use('alt')
+    elif 'default' in available_themes:
+        style.theme_use('default')
+    else:
+        style.theme_use('clam')
+    
+    # Force configure all ttk styles with warm colors - more aggressive approach
+    style.configure('.', background=warm_bg, foreground=warm_text)
+    
+    # Frame styling
+    style.configure('TFrame', background=warm_bg, borderwidth=0)
+    style.configure('TLabelFrame', 
+                   background=warm_bg, 
+                   foreground=warm_accent, 
+                   borderwidth=2,
+                   relief='groove')
+    style.configure('TLabelFrame.Label', 
+                   background=warm_bg, 
+                   foreground=warm_accent, 
+                   font=('Segoe UI', 9, 'bold'))
+    
+    # Label styling
+    style.configure('TLabel', 
+                   background=warm_bg, 
+                   foreground=warm_text, 
+                   font=('Segoe UI', 9))
+    
+    # Entry and Combobox styling - force the colors
+    style.configure('TEntry', 
+                   fieldbackground=warm_entry, 
+                   foreground=warm_text, 
+                   bordercolor=warm_accent,
+                   lightcolor=warm_accent,
+                   darkcolor=warm_accent,
+                   borderwidth=2,
+                   relief='solid')
+    
+    style.configure('TCombobox', 
+                   fieldbackground=warm_entry, 
+                   foreground=warm_text, 
+                   bordercolor=warm_accent,
+                   lightcolor=warm_accent,
+                   darkcolor=warm_accent,
+                   borderwidth=2,
+                   relief='solid',
+                   arrowcolor=warm_accent)
+    
+    # Button styling with warm colors - more specific
+    style.configure('TButton', 
+                   background=warm_button, 
+                   foreground=warm_button_text, 
+                   bordercolor=warm_accent,
+                   lightcolor=warm_button,
+                   darkcolor=warm_accent,
+                   borderwidth=2,
+                   relief='raised',
+                   font=('Segoe UI', 9, 'bold'))
+    
+    # Button state mappings
+    style.map('TButton',
+              background=[('active', warm_accent), 
+                         ('pressed', warm_accent),
+                         ('focus', warm_button)],
+              foreground=[('active', warm_button_text), 
+                         ('pressed', warm_button_text),
+                         ('focus', warm_button_text)],
+              bordercolor=[('active', warm_text),
+                          ('pressed', warm_text)])
+    
+    # Specialized button styles
+    style.configure('Accent.TButton', 
+                   background='#cd853f', 
+                   foreground='white',
+                   bordercolor=warm_accent,
+                   font=('Segoe UI', 9, 'bold'))
+    
+    style.configure('Success.TButton', 
+                   background='#228b22', 
+                   foreground='white',
+                   bordercolor='#1a6b1a',
+                   font=('Segoe UI', 9, 'bold'))
+    
+    style.configure('Urgent.TButton', 
+                   background='#b22222', 
+                   foreground='white',
+                   bordercolor='#8b1a1a',
+                   font=('Segoe UI', 9, 'bold'))
+    
+    # Configure option database for Text widgets and other non-ttk widgets
+    root.option_add('*Text*background', warm_entry)
+    root.option_add('*Text*foreground', warm_text)
+    root.option_add('*Text*insertBackground', warm_text)
+    root.option_add('*Text*selectBackground', warm_accent)
+    root.option_add('*Text*selectForeground', warm_button_text)
+    root.option_add('*Text*borderWidth', '2')
+    root.option_add('*Text*relief', 'solid')
+    
+    # Force update the display
+    root.update_idletasks()
+    
+    app = SOCCaseLogger(root)
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()

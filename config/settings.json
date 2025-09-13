@@ -1,0 +1,28 @@
+{
+  "case_management": {
+    "case_retention_limit": 100,
+    "date_format": "DD-MM-YYYY_HH:MM:SS",
+    "auto_save_interval": 0
+  },
+  "data_export": {
+    "save_location": "",
+    "export_format": "JSON",
+    "compress_old_files": false,
+    "backup_enabled": false,
+    "backup_location": ""
+  },
+  "api_settings": {
+    "request_timeout": 30,
+    "rate_limit_delay": 1
+  },
+  "appearance": {
+    "description_font_family": "Courier New",
+    "description_font_size": 15,
+    "ui_font_family": "Courier New",
+    "ui_font_size": 10,
+    "label_font_size": 10,
+    "button_font_size": 10,
+    "notes_font_family": "Calibri",
+    "notes_font_size": 16
+  }
+}
