@@ -8,3 +8,5 @@
 2025-09-13 00:29:06,444 - __main__ - INFO - Starting main application loop
 2025-09-13 00:29:46,085 - __main__ - INFO - SOC Case Logger application closed by user
 2025-09-13 00:29:46,103 - __main__ - INFO - SOC Case Logger application ended normally
+2025-09-15 10:25:24,460 - __main__ - INFO - SOC Case Logger application started
+2025-09-15 10:25:24,709 - __main__ - INFO - Initializing SOC Case Logger GUI

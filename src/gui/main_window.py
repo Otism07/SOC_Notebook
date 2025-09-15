@@ -3,6 +3,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext, filedialog
 import json
 import os
+import platform
 import requests
 from datetime import datetime
 import sys
@@ -1406,9 +1407,22 @@ class SOCCaseLogger:
             date_format = self.settings_manager.get_case_id_format()
             case_id = f"SOC-{timestamp.strftime(date_format)}"
             
-            # Collect all case data into structured format
+            # Collect all case data into structured format compatible with Case class
             case_data = {
                 "case_id": case_id,
+                "title": "",  # Add title field for Case class compatibility
+                "description": self.notes_text.get('1.0', tk.END).rstrip('\n'),  # Use notes as description
+                "user": self.user_var.get().strip(),
+                "role": self.role_var.get().strip(),
+                "email": self.email_var.get().strip(),
+                "host": self.host_var.get().strip(),  # Changed from hostname to host
+                "ip_address": self.ip_var.get().strip(),
+                "file_hash": self.file_hash_var.get().strip(),
+                "outcome": f"{self.classification_var.get()}, {self.outcome_type_var.get()}",  # Combine classification and type
+                "status": "completed",
+                "created_at": timestamp.isoformat(),  # Use created_at instead of timestamp
+                "updated_at": timestamp.isoformat(),  # Add updated_at field
+                # Keep legacy fields for backward compatibility
                 "timestamp": timestamp.isoformat(),
                 "created_date": timestamp.strftime('%Y-%m-%d %H:%M:%S'),
                 "details": {
@@ -1420,12 +1434,11 @@ class SOCCaseLogger:
                     "file_hash": self.file_hash_var.get().strip(),
                     "url": self.url_var.get().strip()
                 },
-                "outcome": {
+                "outcome_details": {
                     "classification": self.classification_var.get(),
                     "outcome_type": self.outcome_type_var.get()
                 },
-                "notes": self.notes_text.get('1.0', tk.END).rstrip('\n'),
-                "status": "completed"
+                "notes": self.notes_text.get('1.0', tk.END).rstrip('\n')
             }
             
             # Determine data folder path from settings
@@ -1891,22 +1904,256 @@ class SOCCaseLogger:
             self.notes_text.configure(font=("Segoe UI", 10))
 
 def main():
+    """Initialize and run the SOC Case Logger application"""
+    import platform
+    import sys
+    
     root = tk.Tk()
     
-    # Warm color palette
-    warm_bg = '#f5f2e8'      # Warm cream background
-    warm_accent = '#8b6914'   # Warm golden brown
-    warm_text = '#2c1810'     # Dark brown text
-    warm_entry = '#fefcf7'    # Very light cream for entry fields
-    warm_frame = '#ede8dc'    # Slightly darker cream for frames
-    warm_button = '#b8860b'   # Dark golden rod for buttons
-    warm_button_text = '#ffffff'  # White text on buttons
+    # Detect operating system for better color compatibility
+    is_windows = platform.system() == "Windows"
+    is_macos = platform.system() == "Darwin"
+    is_linux = platform.system() == "Linux"
     
-    # Set the main window background first
+    # Windows-compatible color scheme
+    if is_windows:
+        # Softer, Windows-native looking colors
+        warm_bg = '#f0f0f0'        # Light gray (Windows standard)
+        warm_text = '#000000'      # Black text
+        warm_accent = '#0078d4'    # Windows blue accent
+        warm_entry = '#ffffff'     # Pure white for entry fields
+        warm_frame = '#e1e1e1'     # Light gray for frames
+        warm_button = '#0078d4'    # Windows blue for buttons
+        warm_button_text = '#ffffff'  # White text on buttons
+        warm_success = '#107c10'   # Windows green
+        warm_danger = '#d13438'    # Windows red
+        warm_warning = '#ff8c00'   # Windows orange
+    else:
+        # Original warm colors for macOS/Linux
+        warm_bg = '#f5f2e8'        # Warm cream background
+        warm_text = '#2c1810'      # Dark brown text
+        warm_accent = '#8b6914'    # Golden brown accent
+        warm_entry = '#fefcf7'     # Very light cream for entry fields
+        warm_frame = '#ede8dc'     # Slightly darker cream for frames
+        warm_button = '#b8860b'    # Dark golden rod for buttons
+        warm_button_text = '#ffffff'  # White text on buttons
+        warm_success = '#228b22'   # Forest green
+        warm_danger = '#b22222'    # Fire brick red
+        warm_warning = '#cd853f'   # Peru orange
+    
+    # Set the main window background
     root.configure(bg=warm_bg)
     
-    # Configure warm, professional theme
+    # Configure theme based on operating system
     style = ttk.Style()
+    
+    if is_windows:
+        # Use Windows native theme as base
+        try:
+            style.theme_use('winnative')
+        except:
+            try:
+                style.theme_use('vista')
+            except:
+                style.theme_use('default')
+    else:
+        # Use best available theme for other platforms
+        available_themes = style.theme_names()
+        if 'aqua' in available_themes and is_macos:
+            style.theme_use('aqua')
+        elif 'alt' in available_themes:
+            style.theme_use('alt')
+        elif 'clam' in available_themes:
+            style.theme_use('clam')
+        else:
+            style.theme_use('default')
+    
+    # Configure universal styles
+    style.configure('.', background=warm_bg, foreground=warm_text)
+    
+    # Frame styling - more conservative for Windows
+    style.configure('TFrame', background=warm_bg, borderwidth=0)
+    style.configure('TLabelFrame', 
+                   background=warm_bg, 
+                   foreground=warm_accent, 
+                   borderwidth=1 if is_windows else 2,
+                   relief='solid' if is_windows else 'groove')
+    style.configure('TLabelFrame.Label', 
+                   background=warm_bg, 
+                   foreground=warm_accent, 
+                   font=('Segoe UI', 9, 'bold') if is_windows else ('Arial', 9, 'bold'))
+    
+    # Label styling
+    style.configure('TLabel', 
+                   background=warm_bg, 
+                   foreground=warm_text, 
+                   font=('Segoe UI', 9) if is_windows else ('Arial', 9))
+    
+    # Entry and Combobox styling - Windows-friendly
+    if is_windows:
+        style.configure('TEntry', 
+                       fieldbackground=warm_entry, 
+                       foreground=warm_text, 
+                       borderwidth=1,
+                       relief='solid')
+        
+        style.configure('TCombobox', 
+                       fieldbackground=warm_entry, 
+                       foreground=warm_text, 
+                       borderwidth=1,
+                       relief='solid')
+    else:
+        style.configure('TEntry', 
+                       fieldbackground=warm_entry, 
+                       foreground=warm_text, 
+                       bordercolor=warm_accent,
+                       borderwidth=2,
+                       relief='solid')
+        
+        style.configure('TCombobox', 
+                       fieldbackground=warm_entry, 
+                       foreground=warm_text, 
+                       bordercolor=warm_accent,
+                       borderwidth=2,
+                       relief='solid',
+                       arrowcolor=warm_accent)
+    
+    # Button styling - platform-specific
+    if is_windows:
+        # Windows-style buttons with proper relief
+        style.configure('TButton', 
+                       background=warm_button, 
+                       foreground=warm_button_text, 
+                       borderwidth=1,
+                       relief='raised',
+                       padding=(8, 4),
+                       font=('Segoe UI', 9))
+        
+        # Windows button state mapping
+        style.map('TButton',
+                  background=[('active', '#106ebe'), 
+                             ('pressed', '#005a9e'),
+                             ('!disabled', warm_button)],
+                  foreground=[('active', 'white'), 
+                             ('pressed', 'white'),
+                             ('!disabled', warm_button_text)],
+                  relief=[('pressed', 'sunken'), 
+                         ('!pressed', 'raised')])
+        
+        # Specialized button styles for Windows
+        style.configure('Accent.TButton', 
+                       background=warm_warning, 
+                       foreground='white',
+                       borderwidth=1,
+                       relief='raised',
+                       padding=(8, 4),
+                       font=('Segoe UI', 9))
+        
+        style.configure('Success.TButton', 
+                       background=warm_success, 
+                       foreground='white',
+                       borderwidth=1,
+                       relief='raised',
+                       padding=(8, 4),
+                       font=('Segoe UI', 9))
+        
+        style.configure('Urgent.TButton', 
+                       background=warm_danger, 
+                       foreground='white',
+                       borderwidth=1,
+                       relief='raised',
+                       padding=(8, 4),
+                       font=('Segoe UI', 9))
+        
+        # Map button states for all button types
+        for button_style in ['Accent.TButton', 'Success.TButton', 'Urgent.TButton']:
+            style.map(button_style,
+                      relief=[('pressed', 'sunken'), 
+                             ('!pressed', 'raised')])
+    else:
+        # Original styling for macOS/Linux
+        style.configure('TButton', 
+                       background=warm_button, 
+                       foreground=warm_button_text, 
+                       bordercolor=warm_accent,
+                       borderwidth=2,
+                       relief='raised',
+                       font=('Arial', 9, 'bold'))
+        
+        style.map('TButton',
+                  background=[('active', warm_accent), 
+                             ('pressed', warm_accent),
+                             ('focus', warm_button)],
+                  foreground=[('active', warm_button_text), 
+                             ('pressed', warm_button_text),
+                             ('focus', warm_button_text)])
+        
+        # Specialized button styles
+        style.configure('Accent.TButton', 
+                       background=warm_warning, 
+                       foreground='white',
+                       bordercolor=warm_accent,
+                       font=('Arial', 9, 'bold'))
+        
+        style.configure('Success.TButton', 
+                       background=warm_success, 
+                       foreground='white',
+                       bordercolor='#1a6b1a',
+                       font=('Arial', 9, 'bold'))
+        
+        style.configure('Urgent.TButton', 
+                       background=warm_danger, 
+                       foreground='white',
+                       bordercolor='#8b1a1a',
+                       font=('Arial', 9, 'bold'))
+    
+    # Notebook (tab) styling
+    style.configure('TNotebook', 
+                   background=warm_bg,
+                   borderwidth=0)
+    style.configure('TNotebook.Tab', 
+                   background=warm_frame, 
+                   foreground=warm_text,
+                   padding=(12, 8) if is_windows else (10, 6),
+                   font=('Segoe UI', 9) if is_windows else ('Arial', 9))
+    style.map('TNotebook.Tab',
+              background=[('selected', warm_bg),
+                         ('active', warm_accent)],
+              foreground=[('selected', warm_text),
+                         ('active', warm_button_text)])
+    
+    # Treeview styling
+    style.configure('Treeview', 
+                   background=warm_entry,
+                   foreground=warm_text,
+                   fieldbackground=warm_entry,
+                   borderwidth=1,
+                   relief='solid')
+    style.configure('Treeview.Heading',
+                   background=warm_frame,
+                   foreground=warm_text,
+                   font=('Segoe UI', 9, 'bold') if is_windows else ('Arial', 9, 'bold'))
+    
+    # Scrollbar styling
+    style.configure('Vertical.TScrollbar',
+                   background=warm_frame,
+                   bordercolor=warm_accent,
+                   arrowcolor=warm_text,
+                   darkcolor=warm_frame,
+                   lightcolor=warm_entry)
+    
+    # Configure option database for non-ttk widgets (like Text)
+    root.option_add('*Text*background', warm_entry)
+    root.option_add('*Text*foreground', warm_text)
+    root.option_add('*Text*insertBackground', warm_text)
+    root.option_add('*Text*selectBackground', warm_accent)
+    root.option_add('*Text*selectForeground', warm_button_text)
+    root.option_add('*Text*borderWidth', '1' if is_windows else '2')
+    root.option_add('*Text*relief', 'solid')
+    
+    # Canvas styling
+    root.option_add('*Canvas*background', warm_bg)
+    root.option_add('*Canvas*highlightBackground', warm_bg)
     
     # Try different themes to find one that accepts custom colors better
     available_themes = style.theme_names()
@@ -2002,11 +2249,9 @@ def main():
     # Configure option database for Text widgets and other non-ttk widgets
     root.option_add('*Text*background', warm_entry)
     root.option_add('*Text*foreground', warm_text)
-    root.option_add('*Text*insertBackground', warm_text)
-    root.option_add('*Text*selectBackground', warm_accent)
-    root.option_add('*Text*selectForeground', warm_button_text)
-    root.option_add('*Text*borderWidth', '2')
-    root.option_add('*Text*relief', 'solid')
+    # Canvas styling
+    root.option_add('*Canvas*background', warm_bg)
+    root.option_add('*Canvas*highlightBackground', warm_bg)
     
     # Force update the display
     root.update_idletasks()
