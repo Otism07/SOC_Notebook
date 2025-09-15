@@ -1,22 +1,4 @@
 #!/usr/bin/env python3
-"""
-SOC Case Logger - Main Application Entry Point
-
-A comprehensive Security Operations Center (SOC) case management application
-built with Python and Tkinter. Provides case logging, search functionality,
-threat intelligence integration, and secure configuration management.
-
-Features:
-- Case creation and management with structured data storage
-- Integration with VirusTotal and AbuseIPDB threat intelligence APIs
-- Advanced search and filtering capabilities
-- Encrypted API key storage
-- Configurable data directories and export formats
-- Comprehensive error handling and recovery
-
-Author: SOC Team
-Version: 1.0
-"""
 
 # Standard library imports
 import os
@@ -35,13 +17,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from gui.main_window import SOCCaseLogger
 
 def setup_logging():
-    """
-    Set up comprehensive application logging with file and console output.
-    Creates log directory if needed and configures rotating logs.
+    # Set up comprehensive application logging with file and console output
     
-    Returns:
-        Logger instance for the application
-    """
     # Create logs directory if it doesn't exist
     logs_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logs')
     if not os.path.exists(logs_dir):
@@ -63,24 +40,17 @@ def setup_logging():
     return logger
 
 class ApplicationRecovery:
-    """
-    Handles application crashes and provides emergency data recovery.
-    Implements global exception handling and automatic backup functionality.
-    """
+    # Handles application crashes and provides emergency data recovery
+    # Implements global exception handling and automatic backup functionality
     
     def __init__(self, logger):
-        """
-        Initialize recovery system with logging support.
-        
-        Args:
-            logger: Logger instance for recording recovery events
-        """
+        # Initialize recovery system with logging support
         self.logger = logger
         self.app_instance = None
         self.setup_exception_handler()
     
     def setup_exception_handler(self):
-        """Set up global exception handler to catch unhandled exceptions"""
+        # Set up global exception handler to catch unhandled exceptions
         def exception_handler(exc_type, exc_value, exc_traceback):
             # Don't handle KeyboardInterrupt (Ctrl+C)
             if issubclass(exc_type, KeyboardInterrupt):
@@ -114,19 +84,11 @@ class ApplicationRecovery:
         sys.excepthook = exception_handler
     
     def set_app_instance(self, app):
-        """
-        Set the application instance for emergency save functionality.
-        
-        Args:
-            app: The main application instance
-        """
+        # Set the application instance for emergency save functionality
         self.app_instance = app
     
     def emergency_save(self):
-        """
-        Perform emergency save of current work in case of application crash.
-        Creates a backup file with timestamp for later recovery.
-        """
+        # Perform emergency save of current work in case of application crash
         try:
             if self.app_instance and hasattr(self.app_instance, 'emergency_save'):
                 # Use the application's built-in emergency save if available
@@ -158,12 +120,7 @@ class ApplicationRecovery:
             # Don't let save failure cause another crash
 
 def check_dependencies():
-    """
-    Verify that all required dependencies are available.
-    
-    Returns:
-        bool: True if all dependencies are available, False otherwise
-    """
+    # Verify that all required dependencies are available
     try:
         # Check for required standard library modules
         import tkinter
@@ -184,13 +141,7 @@ def check_dependencies():
         return False
 
 def main():
-    """
-    Main application entry point.
-    Sets up logging, recovery, and launches the GUI application.
-    
-    Returns:
-        int: Exit code (0 for success, 1 for error)
-    """
+    # Main application entry point
     try:
         # Set up comprehensive logging
         logger = setup_logging()

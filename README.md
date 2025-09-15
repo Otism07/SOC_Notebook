@@ -108,8 +108,30 @@ soc-case-logger/
 ├── config/               # Configuration files
 ├── logs/                 # Application logs
 ├── requirements.txt      # Dependencies
+├── Script Documentation.md # Detailed script documentation
 └── run.py               # Launch script
 ```
+
+## Script Documentation
+
+For detailed technical documentation about how the scripts work, including function specifications, input/output details, and code architecture, please refer to:
+
+**📖 [Script Documentation.md](Script%20Documentation.md)**
+
+This comprehensive documentation includes:
+- Complete function documentation for all scripts
+- Input/output specifications for every function
+- Purpose and usage information for each module
+- Data format specifications and examples
+- Error handling documentation
+- API integration details
+- File structure overview and dependencies
+
+The Script Documentation is especially useful for:
+- **Developers** looking to understand or modify the codebase
+- **System administrators** needing to troubleshoot issues
+- **Users** wanting to understand the technical implementation
+- **Contributors** planning to extend the application's functionality
 
 ## Data Storage
 

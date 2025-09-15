@@ -1,7 +1,3 @@
-"""
-Utility functions for SOC Case Logger
-"""
-
 import os
 import json
 import re
@@ -25,21 +21,12 @@ except ImportError:
         CRYPTOGRAPHY_AVAILABLE = False
 
 def generate_case_id(prefix: str = "SOC") -> str:
-    """Generate a unique case ID with timestamp"""
+    # Generate a unique case ID with timestamp
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
     return f"{prefix}-{timestamp}"
 
 def hash_file(file_path: str, algorithm: str = 'sha256') -> Optional[str]:
-    """
-    Generate hash of a file using specified algorithm
-    
-    Args:
-        file_path: Path to the file to hash
-        algorithm: Hash algorithm to use (md5, sha1, sha256, sha512)
-    
-    Returns:
-        Hex digest of the file hash, or None if error
-    """
+    # Generate hash of a file using specified algorithm
     if not os.path.exists(file_path):
         return None
     
@@ -78,7 +65,7 @@ def hash_file(file_path: str, algorithm: str = 'sha256') -> Optional[str]:
         return None
 
 def validate_ip_address(ip: str) -> bool:
-    """Validate if string is a valid IPv4 or IPv6 address"""
+    # Validate if string is a valid IPv4 or IPv6 address
     if not ip or not isinstance(ip, str):
         return False
     
@@ -89,16 +76,7 @@ def validate_ip_address(ip: str) -> bool:
         return False
 
 def sanitize_input(text: str, max_length: int = 1000) -> str:
-    """
-    Sanitize user input to prevent injection attacks and ensure safe storage
-    
-    Args:
-        text: Input text to sanitize
-        max_length: Maximum allowed length
-    
-    Returns:
-        Sanitized text
-    """
+    # Sanitize user input to prevent injection attacks and ensure safe storage
     if not isinstance(text, str):
         return ""
     
@@ -115,15 +93,7 @@ def sanitize_input(text: str, max_length: int = 1000) -> str:
     return sanitized.strip()
 
 def validate_email(email: str) -> bool:
-    """
-    Validate email address format
-    
-    Args:
-        email: Email address to validate
-    
-    Returns:
-        True if valid email format, False otherwise
-    """
+    # Validate email address format
     if not email or not isinstance(email, str):
         return False
     
@@ -136,16 +106,7 @@ def validate_email(email: str) -> bool:
     return bool(re.match(pattern, email))
 
 def validate_file_hash(file_hash: str, algorithm: str = 'sha256') -> bool:
-    """
-    Validate file hash format
-    
-    Args:
-        file_hash: Hash string to validate
-        algorithm: Hash algorithm (md5, sha1, sha256, sha512)
-    
-    Returns:
-        True if valid hash format, False otherwise
-    """
+    # Validate file hash format
     if not file_hash or not isinstance(file_hash, str):
         return False
     
@@ -171,15 +132,7 @@ def validate_file_hash(file_hash: str, algorithm: str = 'sha256') -> bool:
     return bool(re.match(pattern, file_hash))
 
 def validate_url(url: str) -> bool:
-    """
-    Validate URL format (including defanged URLs)
-    
-    Args:
-        url: URL to validate
-    
-    Returns:
-        True if valid URL format, False otherwise
-    """
+    # Validate URL format (including defanged URLs)
     if not url or not isinstance(url, str):
         return False
     
@@ -193,7 +146,7 @@ def validate_url(url: str) -> bool:
     return bool(re.search(pattern, url, re.IGNORECASE))
 
 def format_timestamp(timestamp: str) -> str:
-    """Format ISO timestamp to readable format"""
+    # Format ISO timestamp to readable format
     try:
         dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
         return dt.strftime('%Y-%m-%d %H:%M:%S')
@@ -201,7 +154,7 @@ def format_timestamp(timestamp: str) -> str:
         return timestamp
 
 def sanitize_filename(filename: str) -> str:
-    """Sanitize filename for safe file operations"""
+    # Sanitize filename for safe file operations
     # Remove or replace invalid characters
     invalid_chars = '<>:"/\\|?*'
     for char in invalid_chars:
@@ -209,16 +162,7 @@ def sanitize_filename(filename: str) -> str:
     return filename
 
 def export_to_csv(cases: list, filename: str) -> bool:
-    """
-    Export cases to CSV format
-    
-    Args:
-        cases: List of case dictionaries
-        filename: Output filename
-    
-    Returns:
-        True if successful, False otherwise
-    """
+    # Export cases to CSV format
     try:
         import csv
         
@@ -237,16 +181,7 @@ def export_to_csv(cases: list, filename: str) -> bool:
         return False
 
 def backup_data(source_file: str, backup_dir: str = None) -> Optional[str]:
-    """
-    Create a backup of the data file
-    
-    Args:
-        source_file: Path to the file to backup
-        backup_dir: Directory to store backup (default: same directory as source)
-    
-    Returns:
-        Path to backup file if successful, None otherwise
-    """
+    # Create a backup of the data file
     try:
         if not os.path.exists(source_file):
             return None
@@ -268,17 +203,7 @@ def backup_data(source_file: str, backup_dir: str = None) -> Optional[str]:
         return None
 
 def search_text(text: str, search_terms: list, case_sensitive: bool = False) -> bool:
-    """
-    Search for multiple terms in text
-    
-    Args:
-        text: Text to search in
-        search_terms: List of terms to search for
-        case_sensitive: Whether search should be case sensitive
-    
-    Returns:
-        True if any search term is found, False otherwise
-    """
+    # Search for multiple terms in text
     if not case_sensitive:
         text = text.lower()
         search_terms = [term.lower() for term in search_terms]
@@ -286,19 +211,11 @@ def search_text(text: str, search_terms: list, case_sensitive: bool = False) -> 
     return any(term in text for term in search_terms)
 
 class DataValidator:
-    """Validate case data"""
+    # Validate case data
     
     @staticmethod
     def validate_case_data(case_data: Dict[str, Any]) -> tuple[bool, list]:
-        """
-        Validate case data
-        
-        Args:
-            case_data: Dictionary containing case data
-        
-        Returns:
-            Tuple of (is_valid, list_of_errors)
-        """
+        # Validate case data
         errors = []
         
         # Required fields
@@ -321,15 +238,7 @@ class DataValidator:
         return len(errors) == 0, errors
 
 def get_file_info(file_path: str) -> Dict[str, Any]:
-    """
-    Get detailed file information
-    
-    Args:
-        file_path: Path to the file
-    
-    Returns:
-        Dictionary with file information
-    """
+    # Get detailed file information
     info = {
         'exists': False,
         'size': 0,

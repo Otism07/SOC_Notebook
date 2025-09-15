@@ -8,14 +8,12 @@ from cryptography.fernet import Fernet
 import configparser
 
 class SettingsManager:
-    """
-    Manages application settings and encrypted API credentials.
-    Handles configuration persistence, default values, and secure storage
-    of sensitive information like API keys.
-    """
+    # Manages application settings and encrypted API credentials
+    # Handles configuration persistence, default values, and secure storage
+    # of sensitive information like API keys
     
     def __init__(self):
-        """Initialize the settings manager with default paths and encryption"""
+        # Initialize the settings manager with default paths and encryption
         # Set up directory structure
         self.app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.config_dir = os.path.join(self.app_dir, 'config')
@@ -65,7 +63,7 @@ class SettingsManager:
         self.settings = self.load_settings()
     
     def _init_encryption(self):
-        """Initialize or load encryption key for securing API credentials"""
+        # Initialize or load encryption key for securing API credentials
         if os.path.exists(self.key_file):
             # Load existing encryption key
             with open(self.key_file, 'rb') as f:
@@ -80,9 +78,9 @@ class SettingsManager:
         
         # Initialize the cipher for encryption/decryption
         self.cipher = Fernet(self.key)
-    
+
     def load_settings(self):
-        """Load application settings from file or return defaults"""
+        # Load application settings from file or return defaults
         if os.path.exists(self.settings_file):
             try:
                 with open(self.settings_file, 'r') as f:
@@ -96,10 +94,8 @@ class SettingsManager:
         return self.default_settings.copy()
     
     def _merge_settings(self, defaults, loaded):
-        """
-        Merge loaded settings with defaults to ensure all keys exist.
-        This prevents errors when new settings are added in updates.
-        """
+        # Merge loaded settings with defaults to ensure all keys exist
+        # This prevents errors when new settings are added in updates
         result = defaults.copy()
         for section, values in loaded.items():
             if section in result and isinstance(values, dict):
@@ -109,12 +105,7 @@ class SettingsManager:
         return result
     
     def save_settings(self):
-        """
-        Save current settings to file.
-        
-        Returns:
-            bool: True if save was successful, False otherwise
-        """
+        # Save current settings to file
         try:
             with open(self.settings_file, 'w') as f:
                 json.dump(self.settings, f, indent=2)
@@ -124,38 +115,17 @@ class SettingsManager:
             return False
     
     def get_setting(self, section, key):
-        """
-        Get a specific setting value.
-        
-        Args:
-            section: The settings section (e.g., 'case_management')
-            key: The setting key within the section
-            
-        Returns:
-            The setting value or None if not found
-        """
+        # Get a specific setting value.
         return self.settings.get(section, {}).get(key)
     
     def set_setting(self, section, key, value):
-        """
-        Set a specific setting value.
-        
-        Args:
-            section: The settings section
-            key: The setting key
-            value: The new value to set
-        """
+        # Set a specific setting value.
         if section not in self.settings:
             self.settings[section] = {}
         self.settings[section][key] = value
     
     def load_api_credentials(self):
-        """
-        Load and decrypt API credentials from secure storage.
-        
-        Returns:
-            Dictionary containing API keys (empty strings if not found)
-        """
+        # Load and decrypt API credentials from secure storage.
         if not os.path.exists(self.credentials_file):
             return {"abuseipdb_api_key": "", "virustotal_api_key": ""}
         
@@ -177,15 +147,7 @@ class SettingsManager:
             return {"abuseipdb_api_key": "", "virustotal_api_key": ""}
     
     def save_api_credentials(self, credentials):
-        """
-        Encrypt and save API credentials to secure storage.
-        
-        Args:
-            credentials: Dictionary containing API keys
-            
-        Returns:
-            bool: True if save was successful, False otherwise
-        """
+        # Encrypt and save API credentials to secure storage.
         try:
             # Ensure only valid credentials are saved
             valid_creds = {
@@ -210,12 +172,7 @@ class SettingsManager:
             return False
     
     def get_case_id_format(self):
-        """
-        Get the strftime format string for case ID generation.
-        
-        Returns:
-            String format suitable for datetime.strftime()
-        """
+        # Get the strftime format string for case ID generation.
         date_format = self.get_setting("case_management", "date_format")
         
         # Convert user-friendly format to Python strftime format
@@ -230,37 +187,16 @@ class SettingsManager:
         return format_mapping.get(date_format, "%Y-%m-%d_%H-%M-%S")
     
     def get_data_directory(self):
-        """
-        Get the directory where case files should be saved.
-        
-        Returns:
-            Path to the data directory (configured or default)
-        """
+        # Get the directory where case files should be saved.
         return self.get_setting("data_export", "save_location") or self.data_dir
     
     def should_create_new_file(self, current_case_count):
-        """
-        Check if a new JSON file should be created based on retention limit.
-        
-        Args:
-            current_case_count: Number of cases in current file
-            
-        Returns:
-            bool: True if new file should be created
-        """
+        # Check if a new JSON file should be created based on retention limit.
         limit = self.get_setting("case_management", "case_retention_limit")
         return current_case_count >= limit if limit > 0 else False
     
     def export_settings(self, file_path):
-        """
-        Export settings to a file for backup or sharing.
-        
-        Args:
-            file_path: Path where to save the exported settings
-            
-        Returns:
-            bool: True if export was successful, False otherwise
-        """
+        # Export settings to a file for backup or sharing.
         try:
             export_data = {
                 "settings": self.settings,
@@ -276,15 +212,7 @@ class SettingsManager:
             return False
     
     def import_settings(self, file_path):
-        """
-        Import settings from a previously exported file.
-        
-        Args:
-            file_path: Path to the settings file to import
-            
-        Returns:
-            bool: True if import was successful, False otherwise
-        """
+        # Import settings from a previously exported file.
         try:
             with open(file_path, 'r') as f:
                 import_data = json.load(f)

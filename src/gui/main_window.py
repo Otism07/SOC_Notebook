@@ -1,12 +1,12 @@
 # Standard library imports
-import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext, filedialog
-import json
-import os
 import platform
-import requests
-from datetime import datetime
 import sys
+import os
+import tkinter as tk
+from tkinter import ttk, messagebox, filedialog, scrolledtext
+import json
+import datetime
+import requests
 import re
 import time
 
@@ -18,14 +18,57 @@ from models.case import Case
 from case_manager import CaseManager
 from settings_manager import SettingsManager
 
+def create_colored_button(parent, text, command, button_type='default', **kwargs):
+    # Create a colored button that works properly on all platforms.
+    is_windows = platform.system() == "Windows"
+    
+    if is_windows and hasattr(parent.winfo_toplevel(), 'windows_button_colors'):
+        # Use tk.Button on Windows for proper color support
+        colors = parent.winfo_toplevel().windows_button_colors.get(button_type, 
+                 parent.winfo_toplevel().windows_button_colors['default'])
+        
+        # Extract ttk-specific kwargs that don't work with tk.Button
+        width = kwargs.pop('width', None)
+        style = kwargs.pop('style', None)  # Remove style since we're using tk.Button
+        
+        button = tk.Button(parent, 
+                          text=text,
+                          command=command,
+                          bg=colors['bg'],
+                          fg=colors['fg'],
+                          activebackground=colors['activebackground'],
+                          activeforeground=colors['activeforeground'],
+                          relief='raised',
+                          borderwidth=1,
+                          font=('Segoe UI', 9),
+                          cursor='hand2',
+                          **kwargs)
+        
+        # Handle width for tk.Button (uses characters, not pixels)
+        if width:
+            button.configure(width=width)
+            
+        return button
+    else:
+        # Use ttk.Button on other platforms
+        style_map = {
+            'default': 'TButton',
+            'accent': 'Accent.TButton', 
+            'success': 'Success.TButton',
+            'urgent': 'Urgent.TButton'
+        }
+        
+        if 'style' not in kwargs:
+            kwargs['style'] = style_map.get(button_type, 'TButton')
+            
+        return ttk.Button(parent, text=text, command=command, **kwargs)
+
 class SOCCaseLogger:
-    """
-    Main GUI application for SOC (Security Operations Center) case logging.
-    Provides a tabbed interface for case management, search functionality, and settings.
-    """
+    # Main GUI application for SOC (Security Operations Center) case logging
+    # Provides a tabbed interface for case management, search functionality, and settings
     
     def __init__(self, root):
-        """Initialize the SOC Case Logger application"""
+        # Initialize the SOC Case Logger application
         self.root = root
         self.root.title("SOC Case Logger")
         self.root.geometry("950x850")
@@ -58,7 +101,7 @@ class SOCCaseLogger:
         self.apply_font_settings()
         
     def create_widgets(self):
-        """Create the main UI structure with tabbed interface"""
+        # Create the main UI structure with tabbed interface
         # Create main frame
         main_frame = ttk.Frame(self.root)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -87,7 +130,7 @@ class SOCCaseLogger:
         self.create_settings_content(settings_frame)
         
     def create_main_content(self, parent_frame):
-        """Create the General tab content for case creation and editing"""
+        # Create the General tab content for case creation and editing
         # Main content area (previously general tab)
         content_frame = ttk.Frame(parent_frame)
         content_frame.pack(fill=tk.BOTH, expand=True)
@@ -193,7 +236,8 @@ class SOCCaseLogger:
         ttk.Button(buttons_frame, text="Clear", width=12, command=self.clear_all_text).pack(side=tk.LEFT, expand=True, padx=10)
         
         # Save Case button - full width underneath
-        ttk.Button(left_frame, text="Save Case", width=25, command=self.save_case, style='Success.TButton').pack(fill=tk.X, pady=(5, 10), padx=20)
+        save_button = create_colored_button(left_frame, text="Save Case", command=self.save_case, button_type='success', width=25)
+        save_button.pack(fill=tk.X, pady=(5, 10), padx=20)
         
         # Status bar - anchored to bottom (pack from bottom up)
         self.status_var = tk.StringVar()
@@ -224,10 +268,8 @@ class SOCCaseLogger:
         self.notes_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
     def create_search_content(self, parent_frame):
-        """
-        Create the Search tab content for finding and managing saved cases.
-        Provides search controls, results table, and case detail view.
-        """
+        # Create the Search tab content for finding and managing saved cases.
+        # Provides search controls, results table, and case detail view.
         # Main search frame container
         search_main_frame = ttk.Frame(parent_frame)
         search_main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -262,8 +304,8 @@ class SOCCaseLogger:
         buttons_frame.grid(row=1, column=0, columnspan=4, pady=10)
         
         # Search and Clear buttons
-        ttk.Button(buttons_frame, text="Search Cases", command=self.perform_search, 
-                  style='Accent.TButton').pack(side=tk.LEFT, padx=5)
+        search_button = create_colored_button(buttons_frame, text="Search Cases", command=self.perform_search, button_type='accent')
+        search_button.pack(side=tk.LEFT, padx=5)
         ttk.Button(buttons_frame, text="Clear Results", command=self.clear_search_results).pack(side=tk.LEFT, padx=5)
         ttk.Button(buttons_frame, text="Load All Cases", command=self.load_all_cases).pack(side=tk.LEFT, padx=5)
         
@@ -320,15 +362,14 @@ class SOCCaseLogger:
         load_button_frame = ttk.Frame(details_frame)
         load_button_frame.pack(fill=tk.X, pady=(0, 10))
         
-        ttk.Button(load_button_frame, text="Load Case to General Tab", 
-                  command=self.load_case_to_general, style='Success.TButton').pack(pady=5)
+        load_case_button = create_colored_button(load_button_frame, text="Load Case to General Tab", 
+                                               command=self.load_case_to_general, button_type='success')
+        load_case_button.pack(pady=5)
 
     def create_bulk_lookup_content(self, parent_frame):
-        """
-        Create the Bulk Lookup tab content for mass IP address scanning.
-        Allows users to paste multiple IP addresses and scan them against AbuseIPDB,
-        displaying results in an easy-to-read table format for copying to notes.
-        """
+        # Create the Bulk Lookup tab content for mass IP address scanning.
+        # Allows users to paste multiple IP addresses and scan them against AbuseIPDB,
+        # displaying results in an easy-to-read table format for copying to notes.
         # Main bulk lookup frame
         bulk_main_frame = ttk.Frame(parent_frame)
         bulk_main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -354,8 +395,9 @@ class SOCCaseLogger:
         control_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
         
         # Scan button
-        ttk.Button(control_frame, text="Scan All IPs", 
-                  command=self.bulk_scan_ips, style='Accent.TButton').pack(side=tk.LEFT, padx=(0, 5))
+        bulk_scan_button = create_colored_button(control_frame, text="Scan All IPs", 
+                                               command=self.bulk_scan_ips, button_type='accent')
+        bulk_scan_button.pack(side=tk.LEFT, padx=(0, 5))
         
         # Clear input button
         ttk.Button(control_frame, text="Clear Input", 
@@ -415,11 +457,9 @@ class SOCCaseLogger:
         bulk_status_label.pack(side=tk.BOTTOM, fill=tk.X, pady=(5, 0))
 
     def create_settings_content(self, parent_frame):
-        """
-        Create the Settings tab content for application configuration.
-        Includes API credentials, appearance settings, data management options,
-        and import/export functionality. Uses scrollable frame for all options.
-        """
+        # Create the Settings tab content for application configuration.
+        # Includes API credentials, appearance settings, data management options,
+        # and import/export functionality. Uses scrollable frame for all options.
         # Main settings frame with scrollbar support
         settings_canvas = tk.Canvas(parent_frame, bg='#f5f2e8')
         settings_scrollbar = ttk.Scrollbar(parent_frame, orient="vertical", command=settings_canvas.yview)
@@ -558,12 +598,14 @@ class SOCCaseLogger:
         buttons_frame.pack(fill=tk.X, pady=15, padx=10)
         
         # Save Settings button
-        ttk.Button(buttons_frame, text="Save Settings", command=self.save_all_settings, 
-                  style='Success.TButton').pack(side=tk.LEFT, padx=5)
+        save_settings_button = create_colored_button(buttons_frame, text="Save Settings", 
+                                                   command=self.save_all_settings, button_type='success')
+        save_settings_button.pack(side=tk.LEFT, padx=5)
         
         # Reset to Defaults button
-        ttk.Button(buttons_frame, text="Reset to Defaults", command=self.reset_settings_to_defaults, 
-                  style='Urgent.TButton').pack(side=tk.LEFT, padx=5)
+        reset_button = create_colored_button(buttons_frame, text="Reset to Defaults", 
+                                          command=self.reset_settings_to_defaults, button_type='urgent')
+        reset_button.pack(side=tk.LEFT, padx=5)
         
         # Export Settings button
         ttk.Button(buttons_frame, text="Export Settings", command=self.export_settings).pack(side=tk.LEFT, padx=5)
@@ -572,11 +614,9 @@ class SOCCaseLogger:
         ttk.Button(buttons_frame, text="Import Settings", command=self.import_settings).pack(side=tk.LEFT, padx=5)
 
     def update_notes_header(self):
-        """
-        Update the case notes header with user information while preserving existing content.
-        Automatically formats and organizes user details at the top of the notes section.
-        Maintains consistent header structure across all cases.
-        """
+        # Update the case notes header with user information while preserving existing content.
+        # Automatically formats and organizes user details at the top of the notes section.
+        # Maintains consistent header structure across all cases.
         # Get current notes content without trailing newlines
         current_content = self.notes_text.get('1.0', tk.END).rstrip('\n')
 
@@ -631,13 +671,13 @@ class SOCCaseLogger:
         self.notes_text.insert('1.0', new_content)
 
     def on_field_change(self, *args):
-        """Callback when any field changes - updates header automatically"""
+        # Callback when any field changes - updates header automatically
         # This gets called when any traced variable changes
         # We don't need to do anything here since the add buttons handle updates
         pass
 
     def add_details_to_notes(self):
-        """Add/update all detail information in the notes header"""
+                # Add/update all detail information in the notes header
         self.update_notes_header()
 
         # Collect non-empty fields to provide status feedback
@@ -657,7 +697,7 @@ class SOCCaseLogger:
             self.status_var.set("All detail fields cleared from notes")
 
     def add_outcome_to_notes(self):
-        """Add the selected outcome to the bottom of the notes text"""
+        # Add the selected outcome to the bottom of the notes text
         classification = self.classification_var.get()
         outcome_type = self.outcome_type_var.get()
         
@@ -677,7 +717,7 @@ class SOCCaseLogger:
         self.status_var.set(f"Added verdict: {classification}, {outcome_type}")
     
     def defang_url(self):
-        """Defang the URL to make it non-clickable and safe"""
+        # Defang the URL to make it non-clickable and safe
         url = self.url_var.get().strip()
         if not url:
             messagebox.showwarning("Warning", "Please enter a URL to defang")
@@ -716,10 +756,8 @@ class SOCCaseLogger:
         self.status_var.set(f"URL defanged and added to notes")
 
     def scan_hash_virustotal(self):
-        """
-        Scan a file hash using VirusTotal API and add results to case notes.
-        Validates API key, makes the request, and formats the response for display.
-        """
+        # Scan a file hash using VirusTotal API and add results to case notes.
+        # Validates API key, makes the request, and formats the response for display.
         file_hash = self.file_hash_var.get().strip()
         if not file_hash:
             messagebox.showwarning("Warning", "Please enter a file hash to scan")
@@ -854,10 +892,8 @@ class SOCCaseLogger:
             self.status_var.set("Ready - No existing cases")
     
     def search_ip_abuseipdb(self):
-        """
-        Search an IP address using AbuseIPDB API and add threat intelligence to notes.
-        Provides abuse confidence percentage, ISP information, and hostname details.
-        """
+        # Search an IP address using AbuseIPDB API and add threat intelligence to notes.
+        # Provides abuse confidence percentage, ISP information, and hostname details.
         ip_address = self.ip_var.get().strip()
         if not ip_address:
             messagebox.showwarning("Warning", "Please enter an IP address to search")
@@ -942,10 +978,8 @@ class SOCCaseLogger:
             self.status_var.set("AbuseIPDB search failed")
     
     def bulk_scan_ips(self):
-        """
-        Scan multiple IP addresses against AbuseIPDB and display results in a table.
-        Parses input text for IP addresses and performs batch scanning with progress indication.
-        """
+        # Scan multiple IP addresses against AbuseIPDB and display results in a table.
+        # Parses input text for IP addresses and performs batch scanning with progress indication.
         # Get the input text and parse IP addresses
         input_text = self.bulk_ip_text.get('1.0', tk.END).strip()
         if not input_text:
@@ -1021,15 +1055,7 @@ class SOCCaseLogger:
         self.bulk_progress['value'] = 0
     
     def parse_ip_addresses(self, text):
-        """
-        Parse IP addresses from input text supporting multiple formats.
-        
-        Args:
-            text: Input text containing IP addresses
-            
-        Returns:
-            List of unique valid IP addresses
-        """
+        # Parse IP addresses from input text supporting multiple formats.
         import re
         
         # IP address regex pattern
@@ -1056,16 +1082,7 @@ class SOCCaseLogger:
         return valid_ips
     
     def scan_single_ip(self, ip_address, api_key):
-        """
-        Scan a single IP address against AbuseIPDB API.
-        
-        Args:
-            ip_address: IP address to scan
-            api_key: AbuseIPDB API key
-            
-        Returns:
-            Tuple of result data for table display, or None if failed
-        """
+        # Scan a single IP address against AbuseIPDB API.
         try:
             # Make API request to AbuseIPDB
             url = 'https://api.abuseipdb.com/api/v2/check'
@@ -1113,12 +1130,12 @@ class SOCCaseLogger:
             return None
     
     def clear_bulk_input(self):
-        """Clear the bulk IP input text area"""
+        # Clear the bulk IP input text area
         self.bulk_ip_text.delete('1.0', tk.END)
         self.bulk_status_var.set("Input cleared - ready for new IP addresses")
     
     def copy_bulk_results(self):
-        """Copy bulk scan results to clipboard in a formatted table"""
+        # Copy bulk scan results to clipboard in a formatted table
         # Check if there are results to copy
         if not self.bulk_results_tree.get_children():
             messagebox.showwarning("Warning", "No results to copy")
@@ -1159,10 +1176,8 @@ class SOCCaseLogger:
         messagebox.showinfo("Copy Complete", "Bulk scan results copied to clipboard.\nYou can now paste them into the notes section.")
 
     def copy_bulk_results_for_notes(self):
-        """
-        Copy bulk scan results in a format optimized for case notes.
-        Creates a concise summary suitable for pasting into the notes section.
-        """
+        # Copy bulk scan results in a format optimized for case notes.
+        # Creates a concise summary suitable for pasting into the notes section.
         # Check if there are results to copy
         if not self.bulk_results_tree.get_children():
             messagebox.showwarning("Warning", "No results to copy")
@@ -1241,14 +1256,14 @@ class SOCCaseLogger:
         messagebox.showinfo("Copy Complete", "Bulk scan summary copied to clipboard in notes format.\nYou can now paste it into the case notes section.")
 
     def toggle_api_key_visibility(self, entry_widget):
-        """Toggle the visibility of API key in entry widget"""
+        # Toggle the visibility of API key in entry widget
         if entry_widget['show'] == '*':
             entry_widget['show'] = ''
         else:
             entry_widget['show'] = '*'
     
     def browse_save_location(self):
-        """Browse for case files save location"""
+        # Browse for case files save location
         directory = filedialog.askdirectory(
             title="Select Case Files Directory",
             initialdir=self.save_location_var.get()
@@ -1257,7 +1272,7 @@ class SOCCaseLogger:
             self.save_location_var.set(directory)
     
     def browse_backup_location(self):
-        """Browse for backup location"""
+        # Browse for backup location
         directory = filedialog.askdirectory(
             title="Select Backup Directory",
             initialdir=self.backup_location_var.get() or os.path.expanduser("~")
@@ -1266,7 +1281,7 @@ class SOCCaseLogger:
             self.backup_location_var.set(directory)
     
     def save_all_settings(self):
-        """Save all settings to files"""
+        # Save all settings to files
         try:
             # Save API credentials
             credentials = {
@@ -1307,7 +1322,7 @@ class SOCCaseLogger:
             self.status_var.set(f"Error saving settings: {str(e)}")
     
     def reset_settings_to_defaults(self):
-        """Reset all settings to defaults"""
+        # Reset all settings to defaults
         result = messagebox.askyesno("Reset Settings", 
                                    "Are you sure you want to reset all settings to defaults?\n\n"
                                    "This will not affect your saved API keys.")
@@ -1333,7 +1348,7 @@ class SOCCaseLogger:
             self.status_var.set("Settings reset to defaults")
     
     def export_settings(self):
-        """Export settings to a file"""
+        # Export settings to a file
         file_path = filedialog.asksaveasfilename(
             title="Export Settings",
             defaultextension=".json",
@@ -1346,7 +1361,7 @@ class SOCCaseLogger:
                 self.status_var.set("Failed to export settings")
     
     def import_settings(self):
-        """Import settings from a file"""
+        # Import settings from a file
         file_path = filedialog.askopenfilename(
             title="Import Settings",
             filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
@@ -1363,7 +1378,7 @@ class SOCCaseLogger:
                     self.status_var.set("Failed to import settings")
     
     def copy_all_text(self):
-        """Copy all text from the notes text area to the clipboard"""
+        # Copy all text from the notes text area to the clipboard
         text_content = self.notes_text.get('1.0', tk.END).strip()
         if not text_content:
             self.status_var.set("No text to copy - text area is empty")
@@ -1379,7 +1394,7 @@ class SOCCaseLogger:
         self.status_var.set(f"Copied {char_count} characters to clipboard")
     
     def clear_all_text(self):
-        """Clear all text from the notes text area with confirmation"""
+                # Clear all text from the notes text area with confirmation
         text_content = self.notes_text.get('1.0', tk.END).strip()
         if not text_content:
             self.status_var.set("Text area is already empty")
@@ -1396,11 +1411,9 @@ class SOCCaseLogger:
             self.status_var.set("Clear operation cancelled")
     
     def save_case(self):
-        """
-        Save the current case information to JSON files in the configured data directory.
-        Creates both individual case files and updates the main cases.json file.
-        Generates a unique case ID based on timestamp and user-configured format.
-        """
+        # Save the current case information to JSON files in the configured data directory.
+        # Creates both individual case files and updates the main cases.json file.
+        # Generates a unique case ID based on timestamp and user-configured format.
         try:
             # Generate unique case ID with timestamp using user's preferred format
             timestamp = datetime.now()
@@ -1489,11 +1502,9 @@ class SOCCaseLogger:
             messagebox.showerror("Save Error", error_msg)
     
     def perform_search(self):
-        """
-        Search through saved cases based on user input criteria.
-        Supports searching in specific fields or across all fields.
-        Displays results in a sortable table format.
-        """
+                # Search through saved cases based on user input criteria.
+        # Supports searching in specific fields or across all fields.
+        # Displays results in a sortable table format.
         search_term = self.search_term_var.get().strip().lower()
         search_category = self.search_category_var.get()
         
@@ -1558,7 +1569,7 @@ class SOCCaseLogger:
             self.status_var.set("Search failed")
     
     def case_matches_search(self, case, search_term, search_category):
-        """Check if a case matches the search criteria"""
+                # Check if a case matches the search criteria
         if not search_term:  # If no search term, match all
             return True
         
@@ -1599,14 +1610,14 @@ class SOCCaseLogger:
         return search_term in field_value
     
     def clear_search_results(self):
-        """Clear search results and details"""
+                # Clear search results and details
         for item in self.search_tree.get_children():
             self.search_tree.delete(item)
         self.search_details_text.delete('1.0', tk.END)
         self.status_var.set("Search results cleared")
     
     def load_all_cases(self):
-        """Load and display all saved cases"""
+                # Load and display all saved cases
         try:
             data_folder = self.settings_manager.get_data_directory()
             cases_filepath = os.path.join(data_folder, 'cases.json')
@@ -1644,7 +1655,7 @@ class SOCCaseLogger:
             messagebox.showerror("Load Error", f"Error loading cases: {str(e)}")
     
     def load_selected_search_case(self, event):
-        """Load the selected case details when clicked in search results"""
+                # Load the selected case details when clicked in search results
         selection = self.search_tree.selection()
         if not selection:
             return
@@ -1679,7 +1690,7 @@ class SOCCaseLogger:
             messagebox.showerror("Error", f"Error loading case details: {str(e)}")
     
     def display_case_details(self, case):
-        """Display full case details in the details text area"""
+                # Display full case details in the details text area
         self.search_details_text.delete('1.0', tk.END)
         
         details = []
@@ -1714,7 +1725,7 @@ class SOCCaseLogger:
         self.search_details_text.insert('1.0', '\n'.join(details))
     
     def load_case_to_general(self):
-        """Load the selected case data to the General tab for editing"""
+                # Load the selected case data to the General tab for editing
         if not hasattr(self, 'selected_search_case') or not self.selected_search_case:
             messagebox.showwarning("Load Case", "Please select a case from the search results first")
             return
@@ -1749,7 +1760,7 @@ class SOCCaseLogger:
         messagebox.showinfo("Case Loaded", f"Case {case_id} has been loaded to the General tab")
     
     def get_case_info_text(self):
-        """Generate formatted text of all case information"""
+                # Generate formatted text of all case information
         info = []
         info.append(f"User: {self.user_var.get()}")
         info.append(f"Role: {self.role_var.get()}")
@@ -1763,7 +1774,7 @@ class SOCCaseLogger:
         return "\n".join(info)
     
     def new_case(self):
-        """Create a new case"""
+                # Create a new case
         # Clear all fields
         self.user_var.set("")
         self.role_var.set("")
@@ -1785,7 +1796,7 @@ class SOCCaseLogger:
         messagebox.showinfo("New Case", f"New case created with ID: {new_id}")
     
     def load_case_data(self, case):
-        """Load case data into the form"""
+                # Load case data into the form
         self.current_case = case
         self.user_var.set(case.user)
         self.role_var.set(case.role)
@@ -1832,7 +1843,7 @@ class SOCCaseLogger:
         self.status_var.set(f"Loaded case {case.case_id}")
     
     def search_cases(self):
-        """Search for cases"""
+                # Search for cases
         search_term = self.search_var.get().lower()
         if not search_term:
             messagebox.showwarning("Warning", "Please enter a search term")
@@ -1857,7 +1868,7 @@ class SOCCaseLogger:
         self.status_var.set(f"Found {len(cases)} matching cases")
     
     def load_selected_case(self, event):
-        """Load the selected case from search results"""
+                # Load the selected case from search results
         selection = self.search_tree.selection()
         if selection:
             item = self.search_tree.item(selection[0])
@@ -1868,7 +1879,7 @@ class SOCCaseLogger:
                 self.notebook.select(0)  # Switch to General tab
     
     def load_existing_cases(self):
-        """Load existing cases on startup"""
+                # Load existing cases on startup
         try:
             cases = self.case_manager.get_all_cases()
             self.status_var.set(f"Loaded {len(cases)} existing cases")
@@ -1876,7 +1887,7 @@ class SOCCaseLogger:
             self.status_var.set("Ready - No existing cases")
     
     def reinitialize_case_manager(self):
-        """Reinitialize the case manager with the current data directory setting"""
+                # Reinitialize the case manager with the current data directory setting
         try:
             data_directory = self.settings_manager.get_data_directory()
             cases_file_path = os.path.join(data_directory, 'cases.json')
@@ -1886,7 +1897,7 @@ class SOCCaseLogger:
             self.status_var.set(f"Error updating case data location: {str(e)}")
     
     def apply_font_settings(self):
-        """Apply font settings to the notes text widget"""
+                # Apply font settings to the notes text widget
         try:
             notes_font_family = self.settings_manager.get_setting("appearance", "notes_font_family")
             notes_font_size = self.settings_manager.get_setting("appearance", "notes_font_size")
@@ -1904,7 +1915,7 @@ class SOCCaseLogger:
             self.notes_text.configure(font=("Segoe UI", 10))
 
 def main():
-    """Initialize and run the SOC Case Logger application"""
+            # Initialize and run the SOC Case Logger application
     import platform
     import sys
     
@@ -2020,56 +2031,37 @@ def main():
     
     # Button styling - platform-specific
     if is_windows:
-        # Windows-style buttons with proper relief
+        # For Windows, we'll use regular tk.Button for colored buttons since ttk doesn't work well
+        # Store button colors for Windows custom button creation
+        root.windows_button_colors = {
+            'default': {'bg': warm_button, 'fg': warm_button_text, 'activebackground': '#106ebe', 'activeforeground': 'white'},
+            'accent': {'bg': warm_warning, 'fg': 'white', 'activebackground': '#e6950d', 'activeforeground': 'white'},
+            'success': {'bg': warm_success, 'fg': 'white', 'activebackground': '#0e6b0e', 'activeforeground': 'white'},
+            'urgent': {'bg': warm_danger, 'fg': 'white', 'activebackground': '#b8292d', 'activeforeground': 'white'}
+        }
+        
+        # Configure regular ttk buttons for non-colored use
         style.configure('TButton', 
-                       background=warm_button, 
-                       foreground=warm_button_text, 
+                       background=warm_frame, 
+                       foreground=warm_text, 
                        borderwidth=1,
                        relief='raised',
                        padding=(8, 4),
                        font=('Segoe UI', 9))
         
-        # Windows button state mapping
+        # Windows button state mapping for regular buttons
         style.map('TButton',
-                  background=[('active', '#106ebe'), 
-                             ('pressed', '#005a9e'),
-                             ('!disabled', warm_button)],
-                  foreground=[('active', 'white'), 
-                             ('pressed', 'white'),
-                             ('!disabled', warm_button_text)],
+                  background=[('active', '#d0d0d0'), 
+                             ('pressed', '#c0c0c0'),
+                             ('!disabled', warm_frame)],
+                  foreground=[('active', warm_text), 
+                             ('pressed', warm_text),
+                             ('!disabled', warm_text)],
                   relief=[('pressed', 'sunken'), 
                          ('!pressed', 'raised')])
         
-        # Specialized button styles for Windows
-        style.configure('Accent.TButton', 
-                       background=warm_warning, 
-                       foreground='white',
-                       borderwidth=1,
-                       relief='raised',
-                       padding=(8, 4),
-                       font=('Segoe UI', 9))
-        
-        style.configure('Success.TButton', 
-                       background=warm_success, 
-                       foreground='white',
-                       borderwidth=1,
-                       relief='raised',
-                       padding=(8, 4),
-                       font=('Segoe UI', 9))
-        
-        style.configure('Urgent.TButton', 
-                       background=warm_danger, 
-                       foreground='white',
-                       borderwidth=1,
-                       relief='raised',
-                       padding=(8, 4),
-                       font=('Segoe UI', 9))
-        
-        # Map button states for all button types
-        for button_style in ['Accent.TButton', 'Success.TButton', 'Urgent.TButton']:
-            style.map(button_style,
-                      relief=[('pressed', 'sunken'), 
-                             ('!pressed', 'raised')])
+        # Don't configure colored ttk button styles for Windows - we'll use tk.Button instead
+        # This prevents the white background issue
     else:
         # Original styling for macOS/Linux
         style.configure('TButton', 
@@ -2110,17 +2102,22 @@ def main():
     # Notebook (tab) styling
     style.configure('TNotebook', 
                    background=warm_bg,
-                   borderwidth=0)
+                   borderwidth=1 if is_windows else 0,
+                   relief='solid' if is_windows else 'flat')
     style.configure('TNotebook.Tab', 
                    background=warm_frame, 
                    foreground=warm_text,
                    padding=(12, 8) if is_windows else (10, 6),
-                   font=('Segoe UI', 9) if is_windows else ('Arial', 9))
+                   font=('Segoe UI', 9) if is_windows else ('Arial', 9),
+                   borderwidth=1 if is_windows else 0,
+                   relief='raised' if is_windows else 'flat')
     style.map('TNotebook.Tab',
-              background=[('selected', warm_bg),
+              background=[('selected', warm_entry if is_windows else warm_bg),
                          ('active', warm_accent)],
               foreground=[('selected', warm_text),
-                         ('active', warm_button_text)])
+                         ('active', warm_button_text)],
+              relief=[('selected', 'sunken' if is_windows else 'flat'),
+                     ('!selected', 'raised' if is_windows else 'flat')])
     
     # Treeview styling
     style.configure('Treeview', 

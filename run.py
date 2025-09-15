@@ -1,30 +1,11 @@
 #!/usr/bin/env python3
-"""
-SOC Case Logger Launcher Script
-
-This script provides a unified entry point for launching the SOC Case Logger application.
-Handles both development environments and bundled executables created with PyInstaller.
-Automatically configures the Python path and working directory for proper module imports.
-
-Usage:
-    python3 run.py          # Launch in development mode
-    ./SOCCaseLogger.exe     # Launch bundled executable (Windows)
-"""
 
 import os
 import sys
 import subprocess
 
 def get_resource_path(relative_path):
-    """
-    Get absolute path to resource, works for both development and PyInstaller bundles.
-    
-    Args:
-        relative_path: Path relative to the application root
-        
-    Returns:
-        Absolute path to the resource
-    """
+    # Get absolute path to resource, works for both development and PyInstaller bundles
     try:
         # PyInstaller creates a temp folder and stores path in _MEIPASS
         base_path = sys._MEIPASS
@@ -34,14 +15,8 @@ def get_resource_path(relative_path):
     
     return os.path.join(base_path, relative_path)
 
-def main():
-    """
-    Launch the SOC Case Logger application.
-    Automatically detects execution environment and configures accordingly.
-    
-    Returns:
-        int: Exit code (0 for success, 1 for error)
-    """
+def run_application():
+    # Launch the SOC Case Logger application
     
     # Determine execution environment and launch accordingly
     if getattr(sys, 'frozen', False):
@@ -102,5 +77,5 @@ def main():
 
 if __name__ == "__main__":
     # Execute the launcher and exit with appropriate code
-    exit_code = main()
+    exit_code = run_application()
     sys.exit(exit_code)
