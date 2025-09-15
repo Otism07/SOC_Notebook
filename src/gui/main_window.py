@@ -1310,19 +1310,50 @@ class SOCCaseLogger:
         self.status_var.set(f"Copied {char_count} characters to clipboard")
     
     def clear_all_text(self):
-                # Clear all text from the notes text area with confirmation
+        # Clear all text from the notes text area and input fields with confirmation
         text_content = self.notes_text.get('1.0', tk.END).strip()
-        if not text_content:
-            self.status_var.set("Text area is already empty")
+        
+        # Check if any fields have content
+        fields_have_content = (
+            text_content or
+            self.user_var.get().strip() or
+            self.role_var.get().strip() or
+            self.email_var.get().strip() or
+            self.host_var.get().strip() or
+            self.ip_var.get().strip() or
+            self.file_hash_var.get().strip() or
+            self.url_var.get().strip()
+        )
+        
+        if not fields_have_content:
+            self.status_var.set("All fields are already empty")
             return
         
         # Ask for confirmation
-        result = messagebox.askyesno("Clear Text", 
-                                   "Are you sure you want to clear all text from the notes area?\n\nThis action cannot be undone.")
+        result = messagebox.askyesno("Clear All Fields", 
+                                   "Are you sure you want to clear all text fields and notes?\n\nThis action cannot be undone.")
         
         if result:
+            # Clear all input fields
+            self.user_var.set("")
+            self.role_var.set("")
+            self.email_var.set("")
+            self.host_var.set("")
+            self.ip_var.set("")
+            self.file_hash_var.set("")
+            self.url_var.set("")
+            
+            # Reset outcome fields to defaults
+            self.classification_var.set("Benign")
+            self.outcome_type_var.set("False-Positive")
+            
+            # Clear notes text area
             self.notes_text.delete('1.0', tk.END)
-            self.status_var.set("Case notes cleared")
+            
+            # Clear current case ID to ensure new case creation on next save
+            self.current_case_id = None
+            
+            self.status_var.set("All fields and notes cleared")
         else:
             self.status_var.set("Clear operation cancelled")
     
