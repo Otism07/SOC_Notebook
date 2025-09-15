@@ -164,27 +164,6 @@ def main():
         except:
             pass  # Icon not found, continue without it
         
-        # Configure modern application styling
-        try:
-            # Use modern theme if available
-            style = tk.ttk.Style()
-            available_themes = style.theme_names()
-            
-            # Prefer modern themes based on platform
-            preferred_themes = ['vista', 'xpnative', 'winnative', 'clam']
-            for theme in preferred_themes:
-                if theme in available_themes:
-                    style.theme_use(theme)
-                    break
-            
-            # Configure custom button styles for different actions
-            style.configure('Accent.TButton', foreground='white', background='#0078d4')
-            style.configure('Success.TButton', foreground='white', background='#107c10')
-            style.configure('Urgent.TButton', foreground='white', background='#d13438')
-            
-        except Exception as e:
-            logger.warning(f"Could not configure theme: {e}")
-        
         # Create and initialize the main application
         logger.info("Initializing SOC Case Logger GUI")
         app = SOCCaseLogger(root)

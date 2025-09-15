@@ -1,11 +1,10 @@
 # Standard library imports
-import platform
 import sys
 import os
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog, scrolledtext
 import json
-import datetime
+from datetime import datetime
 import requests
 import re
 import time
@@ -19,49 +18,8 @@ from case_manager import CaseManager
 from settings_manager import SettingsManager
 
 def create_colored_button(parent, text, command, button_type='default', **kwargs):
-    # Create a colored button that works properly on all platforms.
-    is_windows = platform.system() == "Windows"
-    
-    if is_windows and hasattr(parent.winfo_toplevel(), 'windows_button_colors'):
-        # Use tk.Button on Windows for proper color support
-        colors = parent.winfo_toplevel().windows_button_colors.get(button_type, 
-                 parent.winfo_toplevel().windows_button_colors['default'])
-        
-        # Extract ttk-specific kwargs that don't work with tk.Button
-        width = kwargs.pop('width', None)
-        style = kwargs.pop('style', None)  # Remove style since we're using tk.Button
-        
-        button = tk.Button(parent, 
-                          text=text,
-                          command=command,
-                          bg=colors['bg'],
-                          fg=colors['fg'],
-                          activebackground=colors['activebackground'],
-                          activeforeground=colors['activeforeground'],
-                          relief='raised',
-                          borderwidth=1,
-                          font=('Segoe UI', 9),
-                          cursor='hand2',
-                          **kwargs)
-        
-        # Handle width for tk.Button (uses characters, not pixels)
-        if width:
-            button.configure(width=width)
-            
-        return button
-    else:
-        # Use ttk.Button on other platforms
-        style_map = {
-            'default': 'TButton',
-            'accent': 'Accent.TButton', 
-            'success': 'Success.TButton',
-            'urgent': 'Urgent.TButton'
-        }
-        
-        if 'style' not in kwargs:
-            kwargs['style'] = style_map.get(button_type, 'TButton')
-            
-        return ttk.Button(parent, text=text, command=command, **kwargs)
+    # Create a standard button without custom coloring
+    return ttk.Button(parent, text=text, command=command, **kwargs)
 
 class SOCCaseLogger:
     # Main GUI application for SOC (Security Operations Center) case logging
@@ -72,8 +30,6 @@ class SOCCaseLogger:
         self.root = root
         self.root.title("SOC Case Logger")
         self.root.geometry("950x850")
-        # Set warm, comfortable background color
-        self.root.configure(bg='#f5f2e8')
         
         # Initialize settings manager first (handles configuration and API keys)
         self.settings_manager = SettingsManager()
@@ -83,6 +39,9 @@ class SOCCaseLogger:
         cases_file_path = os.path.join(data_directory, 'cases.json')
         self.case_manager = CaseManager(cases_file_path)
         self.current_case = Case()
+        
+        # Track the current case ID for updating existing cases
+        self.current_case_id = None
         
         # Create the main interface
         self.create_widgets()
@@ -236,19 +195,17 @@ class SOCCaseLogger:
         ttk.Button(buttons_frame, text="Clear", width=12, command=self.clear_all_text).pack(side=tk.LEFT, expand=True, padx=10)
         
         # Save Case button - full width underneath
-        save_button = create_colored_button(left_frame, text="Save Case", command=self.save_case, button_type='success', width=25)
+        save_button = create_colored_button(left_frame, text="Save Case", command=self.save_case, width=25)
         save_button.pack(fill=tk.X, pady=(5, 10), padx=20)
         
         # Status bar - anchored to bottom (pack from bottom up)
         self.status_var = tk.StringVar()
         self.status_var.set("Ready")
-        status_bar = ttk.Label(left_frame, textvariable=self.status_var,
-                                foreground='#2c1810', anchor='center')
+        status_bar = ttk.Label(left_frame, textvariable=self.status_var, anchor='center')
         status_bar.pack(side=tk.BOTTOM, fill=tk.X, pady=(0, 10), padx=20)
         
         # Last Action title - anchored above status bar
-        ttk.Label(left_frame, text="Last Action", font=('Segoe UI', 15, 'bold'),
-                  foreground='#8b6914').pack(side=tk.BOTTOM, pady=(0, 5))
+        ttk.Label(left_frame, text="Last Action", font=('Segoe UI', 15, 'bold')).pack(side=tk.BOTTOM, pady=(0, 5))
         
         # Right column - Expandable to fill remaining space
         right_frame = ttk.Frame(content_frame)
@@ -258,13 +215,7 @@ class SOCCaseLogger:
         notes_frame = ttk.LabelFrame(right_frame, text="Case Notes")
         notes_frame.pack(fill=tk.BOTH, expand=True, pady=5)
 
-        self.notes_text = scrolledtext.ScrolledText(notes_frame, wrap=tk.WORD, width=190, height=15,
-                                                     bg='#fefcf7',      # Light cream background
-                                                     fg='#2c1810',      # Dark brown text
-                                                     insertbackground='#2c1810',  # Cursor color
-                                                     selectbackground='#8b6914',  # Selection background
-                                                     selectforeground='#ffffff',  # Selection text color
-                                                     font=('Segoe UI', 10))
+        self.notes_text = scrolledtext.ScrolledText(notes_frame, wrap=tk.WORD, width=190, height=15)
         self.notes_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
     def create_search_content(self, parent_frame):
@@ -304,7 +255,7 @@ class SOCCaseLogger:
         buttons_frame.grid(row=1, column=0, columnspan=4, pady=10)
         
         # Search and Clear buttons
-        search_button = create_colored_button(buttons_frame, text="Search Cases", command=self.perform_search, button_type='accent')
+        search_button = create_colored_button(buttons_frame, text="Search Cases", command=self.perform_search)
         search_button.pack(side=tk.LEFT, padx=5)
         ttk.Button(buttons_frame, text="Clear Results", command=self.clear_search_results).pack(side=tk.LEFT, padx=5)
         ttk.Button(buttons_frame, text="Load All Cases", command=self.load_all_cases).pack(side=tk.LEFT, padx=5)
@@ -353,9 +304,7 @@ class SOCCaseLogger:
         details_frame.pack(fill=tk.BOTH, expand=True, pady=(5, 0))
         
         # Text widget to show full case details
-        self.search_details_text = scrolledtext.ScrolledText(details_frame, wrap=tk.WORD, height=12,
-                                                            bg='#fefcf7', fg='#2c1810',
-                                                            font=('Segoe UI', 11))
+        self.search_details_text = scrolledtext.ScrolledText(details_frame, wrap=tk.WORD, height=12)
         self.search_details_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=(10, 5))
         
         # Load button to transfer case to General tab
@@ -363,7 +312,7 @@ class SOCCaseLogger:
         load_button_frame.pack(fill=tk.X, pady=(0, 10))
         
         load_case_button = create_colored_button(load_button_frame, text="Load Case to General Tab", 
-                                               command=self.load_case_to_general, button_type='success')
+                                               command=self.load_case_to_general)
         load_case_button.pack(pady=5)
 
     def create_bulk_lookup_content(self, parent_frame):
@@ -385,9 +334,7 @@ class SOCCaseLogger:
         instructions.pack(anchor=tk.W, padx=10, pady=(10, 5))
         
         # IP input text area
-        self.bulk_ip_text = scrolledtext.ScrolledText(input_frame, height=8, width=70,
-                                                     bg='#fefcf7', fg='#2c1810',
-                                                     font=('Consolas', 15))
+        self.bulk_ip_text = scrolledtext.ScrolledText(input_frame, height=8, width=70)
         self.bulk_ip_text.pack(fill=tk.X, padx=10, pady=(0, 10))
         
         # Control buttons frame
@@ -396,7 +343,7 @@ class SOCCaseLogger:
         
         # Scan button
         bulk_scan_button = create_colored_button(control_frame, text="Scan All IPs", 
-                                               command=self.bulk_scan_ips, button_type='accent')
+                                               command=self.bulk_scan_ips)
         bulk_scan_button.pack(side=tk.LEFT, padx=(0, 5))
         
         # Clear input button
@@ -407,9 +354,9 @@ class SOCCaseLogger:
         ttk.Button(control_frame, text="Copy Results", 
                   command=self.copy_bulk_results).pack(side=tk.LEFT, padx=5)
         
-        # Copy for notes button  
-        ttk.Button(control_frame, text="Copy for Notes", 
-                  command=self.copy_bulk_results_for_notes).pack(side=tk.LEFT, padx=5)
+        # Insert into notes button  
+        ttk.Button(control_frame, text="Insert into Notes", 
+                  command=self.insert_bulk_results_into_notes).pack(side=tk.LEFT, padx=5)
         
         # Progress bar
         self.bulk_progress = ttk.Progressbar(control_frame, mode='determinate')
@@ -461,7 +408,7 @@ class SOCCaseLogger:
         # Includes API credentials, appearance settings, data management options,
         # and import/export functionality. Uses scrollable frame for all options.
         # Main settings frame with scrollbar support
-        settings_canvas = tk.Canvas(parent_frame, bg='#f5f2e8')
+        settings_canvas = tk.Canvas(parent_frame)
         settings_scrollbar = ttk.Scrollbar(parent_frame, orient="vertical", command=settings_canvas.yview)
         settings_scrollable_frame = ttk.Frame(settings_canvas)
         
@@ -586,8 +533,7 @@ class SOCCaseLogger:
         notes_size_spinbox.grid(row=0, column=3, sticky=tk.W, padx=5, pady=5)
         
         # Note about font changes
-        ttk.Label(appearance_frame, text="Note: Font changes will be applied when you save settings.", 
-                 font=('Segoe UI', 15, 'italic')).grid(row=1, column=0, columnspan=4, pady=5, padx=10, sticky=tk.W)
+        ttk.Label(appearance_frame, text="Note: Font changes will be applied when you save settings.").grid(row=1, column=0, columnspan=4, pady=5, padx=10, sticky=tk.W)
         
         # Configure grid weights
         appearance_frame.grid_columnconfigure(1, weight=1)
@@ -599,12 +545,12 @@ class SOCCaseLogger:
         
         # Save Settings button
         save_settings_button = create_colored_button(buttons_frame, text="Save Settings", 
-                                                   command=self.save_all_settings, button_type='success')
+                                                   command=self.save_all_settings)
         save_settings_button.pack(side=tk.LEFT, padx=5)
         
         # Reset to Defaults button
         reset_button = create_colored_button(buttons_frame, text="Reset to Defaults", 
-                                          command=self.reset_settings_to_defaults, button_type='urgent')
+                                          command=self.reset_settings_to_defaults)
         reset_button.pack(side=tk.LEFT, padx=5)
         
         # Export Settings button
@@ -1175,85 +1121,55 @@ class SOCCaseLogger:
         self.bulk_status_var.set(f"Copied {len(self.bulk_results_tree.get_children())} results to clipboard")
         messagebox.showinfo("Copy Complete", "Bulk scan results copied to clipboard.\nYou can now paste them into the notes section.")
 
-    def copy_bulk_results_for_notes(self):
-        # Copy bulk scan results in a format optimized for case notes.
-        # Creates a concise summary suitable for pasting into the notes section.
-        # Check if there are results to copy
+    def insert_bulk_results_into_notes(self):
+        # Insert bulk scan results directly into the notes section.
+        # Uses the same format as the "Copy Results" button.
+        # Check if there are results to insert
         if not self.bulk_results_tree.get_children():
-            messagebox.showwarning("Warning", "No results to copy")
+            messagebox.showwarning("Warning", "No results to insert")
             return
         
-        # Prepare notes-friendly format
+        # Prepare formatted results (same format as copy_bulk_results)
         results_text = []
-        results_text.append("Bulk IP Analysis Summary:")
-        results_text.append("")
         
-        # Count results by confidence level
-        high_risk = []
-        medium_risk = []
-        low_risk = []
-        clean_ips = []
+        # Add header
+        header = f"{'IP Address':<15} {'Reports':<8} {'Confidence':<12} {'Country':<15} {'ISP':<20} {'Usage Type':<15}"
+        results_text.append(header)
+        results_text.append("-" * 80)
         
+        # Add each result
         for item in self.bulk_results_tree.get_children():
             values = self.bulk_results_tree.item(item)['values']
             ip, reports, confidence, country, isp, usage_type, hostnames = values
             
-            try:
-                conf_percent = int(str(confidence).replace('%', ''))
-                if conf_percent >= 75:
-                    high_risk.append(f"{ip} ({confidence}% confidence, {reports} reports)")
-                elif conf_percent >= 25:
-                    medium_risk.append(f"{ip} ({confidence}% confidence, {reports} reports)")
-                elif conf_percent > 0:
-                    low_risk.append(f"{ip} ({confidence}% confidence, {reports} reports)")
-                else:
-                    clean_ips.append(f"{ip} (Clean - {reports} reports)")
-            except (ValueError, TypeError):
-                # Handle non-numeric confidence values (errors, etc.)
-                if 'Error' in str(confidence):
-                    results_text.append(f"⚠️  {ip} - Scan failed")
-                else:
-                    clean_ips.append(f"{ip} (Unknown risk)")
+            # Format row
+            row = f"{ip:<15} {reports:<8} {confidence:<12} {country:<15} {isp[:18]:<20} {usage_type:<15}"
+            results_text.append(row)
+            
+            # Add hostnames if available and not 'None'
+            if hostnames and hostnames != 'None':
+                results_text.append(f"{'':>16} Hostnames: {hostnames}")
         
-        # Add categorized results
-        if high_risk:
-            results_text.append("🔴 HIGH RISK IPs:")
-            for ip_info in high_risk:
-                results_text.append(f"   • {ip_info}")
-            results_text.append("")
+        results_text.append("")
+        results_text.append(f"Scan completed with {len(self.bulk_results_tree.get_children())} results")
         
-        if medium_risk:
-            results_text.append("🟡 MEDIUM RISK IPs:")
-            for ip_info in medium_risk:
-                results_text.append(f"   • {ip_info}")
-            results_text.append("")
-        
-        if low_risk:
-            results_text.append("🟠 LOW RISK IPs:")
-            for ip_info in low_risk:
-                results_text.append(f"   • {ip_info}")
-            results_text.append("")
-        
-        if clean_ips:
-            results_text.append("✅ CLEAN IPs:")
-            for ip_info in clean_ips:
-                results_text.append(f"   • {ip_info}")
-            results_text.append("")
-        
-        # Add summary statistics
-        total_ips = len(self.bulk_results_tree.get_children())
-        results_text.append(f"Summary: {total_ips} IPs scanned")
-        results_text.append(f"High Risk: {len(high_risk)}, Medium Risk: {len(medium_risk)}, Low Risk: {len(low_risk)}, Clean: {len(clean_ips)}")
-        
-        # Copy to clipboard
+        # Insert into notes text area
         formatted_results = '\n'.join(results_text)
-        self.root.clipboard_clear()
-        self.root.clipboard_append(formatted_results)
-        self.root.update()
+        
+        # Get current notes content and add the results at the bottom
+        current_text = self.notes_text.get('1.0', tk.END).rstrip('\n')
+        if current_text:
+            new_text = current_text + '\n\n' + formatted_results
+        else:
+            new_text = formatted_results
+
+        self.notes_text.delete('1.0', tk.END)
+        self.notes_text.insert('1.0', new_text)
         
         # Update status
-        self.bulk_status_var.set(f"Copied summary of {total_ips} IPs to clipboard (notes format)")
-        messagebox.showinfo("Copy Complete", "Bulk scan summary copied to clipboard in notes format.\nYou can now paste it into the case notes section.")
+        total_results = len(self.bulk_results_tree.get_children())
+        self.bulk_status_var.set(f"Inserted {total_results} results into notes")
+        messagebox.showinfo("Insert Complete", f"Bulk scan results inserted into notes section.\n{total_results} results added.")
 
     def toggle_api_key_visibility(self, entry_widget):
         # Toggle the visibility of API key in entry widget
@@ -1412,13 +1328,30 @@ class SOCCaseLogger:
     
     def save_case(self):
         # Save the current case information to JSON files in the configured data directory.
-        # Creates both individual case files and updates the main cases.json file.
-        # Generates a unique case ID based on timestamp and user-configured format.
+        # If a case ID is already set (from loading an existing case), update that case.
+        # Otherwise, create a new case with a unique timestamp-based ID.
         try:
-            # Generate unique case ID with timestamp using user's preferred format
             timestamp = datetime.now()
-            date_format = self.settings_manager.get_case_id_format()
-            case_id = f"SOC-{timestamp.strftime(date_format)}"
+            
+            # Check if we're updating an existing case or creating a new one
+            if hasattr(self, 'current_case_id') and self.current_case_id:
+                # We're updating an existing case
+                case_id = self.current_case_id
+                is_update = True
+                
+                # Get the original case to preserve created_at timestamp
+                original_case = self.case_manager.get_case(case_id)
+                if original_case:
+                    created_at = original_case.created_at
+                else:
+                    # Fallback if original case not found
+                    created_at = timestamp.isoformat()
+            else:
+                # We're creating a new case
+                date_format = self.settings_manager.get_case_id_format()
+                case_id = f"SOC-{timestamp.strftime(date_format)}"
+                created_at = timestamp.isoformat()
+                is_update = False
             
             # Collect all case data into structured format compatible with Case class
             case_data = {
@@ -1433,8 +1366,8 @@ class SOCCaseLogger:
                 "file_hash": self.file_hash_var.get().strip(),
                 "outcome": f"{self.classification_var.get()}, {self.outcome_type_var.get()}",  # Combine classification and type
                 "status": "completed",
-                "created_at": timestamp.isoformat(),  # Use created_at instead of timestamp
-                "updated_at": timestamp.isoformat(),  # Add updated_at field
+                "created_at": created_at,  # Preserve original creation time for updates
+                "updated_at": timestamp.isoformat(),  # Always update the modification time
                 # Keep legacy fields for backward compatibility
                 "timestamp": timestamp.isoformat(),
                 "created_date": timestamp.strftime('%Y-%m-%d %H:%M:%S'),
@@ -1478,12 +1411,52 @@ class SOCCaseLogger:
             else:
                 all_cases = []
             
-            # Add new case to the list
-            all_cases.append(case_data)
+            if is_update:
+                # Find and update the existing case
+                case_updated = False
+                for i, existing_case in enumerate(all_cases):
+                    if existing_case.get('case_id') == case_id:
+                        all_cases[i] = case_data
+                        case_updated = True
+                        break
+                
+                # If case wasn't found in the list, add it (shouldn't happen but good fallback)
+                if not case_updated:
+                    all_cases.append(case_data)
+            else:
+                # Add new case to the list
+                all_cases.append(case_data)
             
             # Save updated cases list
             with open(cases_filepath, 'w', encoding='utf-8') as f:
                 json.dump(all_cases, f, indent=2, ensure_ascii=False)
+            
+            # Update the case manager's in-memory cache
+            if is_update:
+                # Use the case manager to update the case
+                case_obj = Case.from_dict(case_data)
+                self.case_manager.save_case(case_obj)
+            else:
+                # Reload cases to include the new case
+                self.case_manager.load_cases()
+            
+            # Update status and show confirmation
+            action = "updated" if is_update else "saved"
+            self.status_var.set(f"Case {action} successfully: {case_id}")
+            
+            # Show success message with file location
+            messagebox.showinfo("Case Saved", 
+                              f"Case {action} successfully!\n\n"
+                              f"Case ID: {case_id}\n"
+                              f"File: {case_filename}\n"
+                              f"Location: {data_folder}\n"
+                              f"Action: {'Updated existing case' if is_update else 'Created new case'}")
+            
+        except Exception as e:
+            # Handle any errors during save
+            error_msg = f"Error saving case: {str(e)}"
+            self.status_var.set("Failed to save case")
+            messagebox.showerror("Save Error", error_msg)
             
             # Update status and show confirmation
             self.status_var.set(f"Case saved successfully: {case_id}")
@@ -1502,7 +1475,7 @@ class SOCCaseLogger:
             messagebox.showerror("Save Error", error_msg)
     
     def perform_search(self):
-                # Search through saved cases based on user input criteria.
+        # Search through saved cases based on user input criteria.
         # Supports searching in specific fields or across all fields.
         # Displays results in a sortable table format.
         search_term = self.search_term_var.get().strip().lower()
@@ -1514,16 +1487,8 @@ class SOCCaseLogger:
             return
         
         try:
-            # Load cases from JSON file using configured data directory
-            data_folder = self.settings_manager.get_data_directory()
-            cases_filepath = os.path.join(data_folder, 'cases.json')
-            
-            if not os.path.exists(cases_filepath):
-                messagebox.showinfo("Search", "No saved cases found")
-                return
-            
-            with open(cases_filepath, 'r', encoding='utf-8') as f:
-                all_cases = json.load(f)
+            # Use CaseManager to get cases
+            all_cases = self.case_manager.get_all_cases()
             
             if not all_cases:
                 messagebox.showinfo("Search", "No saved cases found")
@@ -1535,18 +1500,22 @@ class SOCCaseLogger:
             # Filter cases based on search criteria
             matching_cases = []
             for case in all_cases:
-                if self.case_matches_search(case, search_term, search_category):
+                if self.case_matches_search_obj(case, search_term, search_category):
                     matching_cases.append(case)
             
             # Populate treeview with results
             for case in matching_cases:
                 # Format the data for display
-                case_id = case.get('case_id', 'N/A')
-                date = case.get('created_date', case.get('timestamp', 'N/A'))[:10]  # Just date part
-                user = case.get('details', {}).get('user', 'N/A')
-                classification = case.get('outcome', {}).get('classification', 'N/A')
-                outcome_type = case.get('outcome', {}).get('outcome_type', 'N/A')
-                notes = case.get('notes', '')
+                case_id = case.case_id or 'N/A'
+                date = case.created_at[:10] if case.created_at else 'N/A'  # Just date part
+                user = case.user or 'N/A'
+                
+                # Parse classification and outcome from combined outcome field
+                outcome_parts = case.outcome.split(',') if case.outcome else ['N/A', 'N/A']
+                classification = outcome_parts[0].strip() if len(outcome_parts) > 0 else 'N/A'
+                outcome_type = outcome_parts[1].strip() if len(outcome_parts) > 1 else 'N/A'
+                
+                notes = case.notes or ''
 
                 # Truncate notes for preview
                 notes_preview = notes[:100] + "..." if len(notes) > 100 else notes
@@ -1568,6 +1537,45 @@ class SOCCaseLogger:
             messagebox.showerror("Search Error", f"Error searching cases: {str(e)}")
             self.status_var.set("Search failed")
     
+    def case_matches_search_obj(self, case_obj, search_term, search_category):
+        # Check if a Case object matches the search criteria
+        if not search_term:  # If no search term, match all
+            return True
+        
+        search_term = search_term.lower()
+        
+        if search_category == 'All Fields':
+            # Search in all text fields of the Case object
+            searchable_text = ' '.join([
+                case_obj.case_id or '',
+                case_obj.user or '',
+                case_obj.email or '',
+                case_obj.role or '',
+                case_obj.host or '',
+                case_obj.ip_address or '',
+                case_obj.file_hash or '',
+                case_obj.outcome or '',
+                case_obj.notes or ''
+            ]).lower()
+            return search_term in searchable_text
+        
+        # Search in specific field
+        field_mapping = {
+            'Case ID': case_obj.case_id or '',
+            'User': case_obj.user or '',
+            'Email': case_obj.email or '',
+            'Hostname': case_obj.host or '',
+            'IP Address': case_obj.ip_address or '',
+            'File Hash': case_obj.file_hash or '',
+            'URL': '',  # URL not stored in Case object currently
+            'Classification': case_obj.outcome.split(',')[0].strip() if case_obj.outcome else '',
+            'Outcome Type': case_obj.outcome.split(',')[1].strip() if case_obj.outcome and ',' in case_obj.outcome else '',
+            'Notes': case_obj.notes or ''
+        }
+        
+        field_value = field_mapping.get(search_category, '').lower()
+        return search_term in field_value
+
     def case_matches_search(self, case, search_term, search_category):
                 # Check if a case matches the search criteria
         if not search_term:  # If no search term, match all
@@ -1617,29 +1625,30 @@ class SOCCaseLogger:
         self.status_var.set("Search results cleared")
     
     def load_all_cases(self):
-                # Load and display all saved cases
+        # Load and display all saved cases using CaseManager
         try:
-            data_folder = self.settings_manager.get_data_directory()
-            cases_filepath = os.path.join(data_folder, 'cases.json')
+            # Use CaseManager to get all cases
+            all_cases = self.case_manager.get_all_cases()
             
-            if not os.path.exists(cases_filepath):
+            if not all_cases:
                 messagebox.showinfo("Load Cases", "No saved cases found")
                 return
-            
-            with open(cases_filepath, 'r', encoding='utf-8') as f:
-                all_cases = json.load(f)
             
             # Clear previous results
             self.clear_search_results()
             
             # Populate treeview with all cases
             for case in all_cases:
-                case_id = case.get('case_id', 'N/A')
-                date = case.get('created_date', case.get('timestamp', 'N/A'))[:10]
-                user = case.get('details', {}).get('user', 'N/A')
-                classification = case.get('outcome', {}).get('classification', 'N/A')
-                outcome_type = case.get('outcome', {}).get('outcome_type', 'N/A')
-                notes = case.get('notes', '')
+                case_id = case.case_id or 'N/A'
+                date = case.created_at[:10] if case.created_at else 'N/A'
+                user = case.user or 'N/A'
+                
+                # Parse classification and outcome from combined outcome field
+                outcome_parts = case.outcome.split(',') if case.outcome else ['N/A', 'N/A']
+                classification = outcome_parts[0].strip() if len(outcome_parts) > 0 else 'N/A'
+                outcome_type = outcome_parts[1].strip() if len(outcome_parts) > 1 else 'N/A'
+                
+                notes = case.notes or ''
 
                 notes_preview = notes[:100] + "..." if len(notes) > 100 else notes
                 notes_preview = notes_preview.replace('\n', ' ')
@@ -1653,9 +1662,10 @@ class SOCCaseLogger:
             
         except Exception as e:
             messagebox.showerror("Load Error", f"Error loading cases: {str(e)}")
+            self.status_var.set("Failed to load cases")
     
     def load_selected_search_case(self, event):
-                # Load the selected case details when clicked in search results
+        # Load the selected case details when clicked in search results
         selection = self.search_tree.selection()
         if not selection:
             return
@@ -1665,30 +1675,62 @@ class SOCCaseLogger:
         case_id = item['values'][0]
         
         try:
-            # Load the specific case data using configured data directory
-            data_folder = self.settings_manager.get_data_directory()
-            cases_filepath = os.path.join(data_folder, 'cases.json')
-            
-            with open(cases_filepath, 'r', encoding='utf-8') as f:
-                all_cases = json.load(f)
-            
-            # Find the selected case
-            selected_case = None
-            for case in all_cases:
-                if case.get('case_id') == case_id:
-                    selected_case = case
-                    break
+            # Use CaseManager to get the specific case
+            selected_case = self.case_manager.get_case(case_id)
             
             if selected_case:
                 # Store the selected case for potential loading to General tab
                 self.selected_search_case = selected_case
                 
                 # Display case details
-                self.display_case_details(selected_case)
+                self.display_case_details_obj(selected_case)
+            else:
+                messagebox.showerror("Error", f"Case {case_id} not found")
             
         except Exception as e:
             messagebox.showerror("Error", f"Error loading case details: {str(e)}")
     
+    def display_case_details_obj(self, case_obj):
+        # Display full case details for a Case object in the details text area
+        self.search_details_text.delete('1.0', tk.END)
+        
+        details = []
+        details.append(f"Case ID: {case_obj.case_id or 'N/A'}")
+        details.append(f"Date: {case_obj.created_at[:10] if case_obj.created_at else 'N/A'}")
+        details.append("")
+        
+        # Case details
+        details.append("=== CASE DETAILS ===")
+        details.append(f"User: {case_obj.user or 'N/A'}")
+        details.append(f"Role: {case_obj.role or 'N/A'}")
+        details.append(f"Email: {case_obj.email or 'N/A'}")
+        details.append(f"Hostname: {case_obj.host or 'N/A'}")
+        details.append(f"IP Address: {case_obj.ip_address or 'N/A'}")
+        details.append(f"File Hash: {case_obj.file_hash or 'N/A'}")
+        details.append(f"URL: N/A")  # URL not stored in Case object currently
+        details.append("")
+        
+        # Outcome
+        details.append("=== OUTCOME ===")
+        if case_obj.outcome and ',' in case_obj.outcome:
+            outcome_parts = case_obj.outcome.split(',')
+            classification = outcome_parts[0].strip()
+            outcome_type = outcome_parts[1].strip() if len(outcome_parts) > 1 else 'N/A'
+        else:
+            classification = case_obj.outcome or 'N/A'
+            outcome_type = 'N/A'
+        
+        details.append(f"Classification: {classification}")
+        details.append(f"Outcome Type: {outcome_type}")
+        details.append("")
+
+        # Notes
+        details.append("=== NOTES ===")
+        details.append(case_obj.notes or 'No notes available')
+
+        # Insert all details
+        self.search_details_text.insert('1.0', '\n'.join(details))
+
     def display_case_details(self, case):
                 # Display full case details in the details text area
         self.search_details_text.delete('1.0', tk.END)
@@ -1725,29 +1767,39 @@ class SOCCaseLogger:
         self.search_details_text.insert('1.0', '\n'.join(details))
     
     def load_case_to_general(self):
-                # Load the selected case data to the General tab for editing
+        # Load the selected case data to the General tab for editing
         if not hasattr(self, 'selected_search_case') or not self.selected_search_case:
             messagebox.showwarning("Load Case", "Please select a case from the search results first")
             return
         
         case = self.selected_search_case
-        case_details = case.get('details', {})
-        outcome = case.get('outcome', {})
         
-        # Load data into General tab fields
-        self.user_var.set(case_details.get('user', ''))
-        self.role_var.set(case_details.get('role', ''))
-        self.email_var.set(case_details.get('email', ''))
-        self.host_var.set(case_details.get('hostname', ''))
-        self.ip_var.set(case_details.get('ip_address', ''))
-        self.file_hash_var.set(case_details.get('file_hash', ''))
-        self.url_var.set(case_details.get('url', ''))
-        self.classification_var.set(outcome.get('classification', 'Benign'))
-        self.outcome_type_var.set(outcome.get('outcome_type', 'False-Positive'))
+        # Set the current case ID for future updates
+        self.current_case_id = case.case_id
+        
+        # Load data into General tab fields from Case object
+        self.user_var.set(case.user or '')
+        self.role_var.set(case.role or '')
+        self.email_var.set(case.email or '')
+        self.host_var.set(case.host or '')
+        self.ip_var.set(case.ip_address or '')
+        self.file_hash_var.set(case.file_hash or '')
+        self.url_var.set('')  # URL not stored in Case object currently
+        
+        # Parse outcome into classification and type
+        if case.outcome and ',' in case.outcome:
+            outcome_parts = case.outcome.split(',')
+            classification = outcome_parts[0].strip()
+            outcome_type = outcome_parts[1].strip() if len(outcome_parts) > 1 else 'False-Positive'
+            self.classification_var.set(classification)
+            self.outcome_type_var.set(outcome_type)
+        else:
+            self.classification_var.set(case.outcome or 'Benign')
+            self.outcome_type_var.set('False-Positive')
 
         # Load notes
         self.notes_text.delete('1.0', tk.END)
-        notes_content = case.get('notes', '')
+        notes_content = case.notes or ''
         if notes_content:
             self.notes_text.insert('1.0', notes_content)
 
@@ -1755,9 +1807,9 @@ class SOCCaseLogger:
         self.notebook.select(0)
         
         # Update status
-        case_id = case.get('case_id', 'Unknown')
-        self.status_var.set(f"Loaded case {case_id} to General tab")
-        messagebox.showinfo("Case Loaded", f"Case {case_id} has been loaded to the General tab")
+        case_id = case.case_id or 'Unknown'
+        self.status_var.set(f"Loaded case {case_id} to General tab (Edit Mode)")
+        messagebox.showinfo("Case Loaded", f"Case {case_id} has been loaded to the General tab.\nAny changes will update the existing case when saved.")
     
     def get_case_info_text(self):
                 # Generate formatted text of all case information
@@ -1774,7 +1826,7 @@ class SOCCaseLogger:
         return "\n".join(info)
     
     def new_case(self):
-                # Create a new case
+        # Create a new case
         # Clear all fields
         self.user_var.set("")
         self.role_var.set("")
@@ -1787,13 +1839,16 @@ class SOCCaseLogger:
         self.outcome_type_var.set("False-Positive")
         self.notes_text.delete('1.0', tk.END)
 
-        # Generate new case ID
+        # Clear the current case ID to ensure we create a new case when saving
+        self.current_case_id = None
+        
+        # Generate new case ID for display purposes (actual ID will be generated on save)
         new_id = f"SOC-{datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}"
         
         self.current_case = Case()
         self.current_case.case_id = new_id
-        self.status_var.set("New case created")
-        messagebox.showinfo("New Case", f"New case created with ID: {new_id}")
+        self.status_var.set("New case created (Create Mode)")
+        messagebox.showinfo("New Case", f"New case ready for creation.\nCase will be assigned a unique ID when saved.")
     
     def load_case_data(self, case):
                 # Load case data into the form
@@ -1897,362 +1952,46 @@ class SOCCaseLogger:
             self.status_var.set(f"Error updating case data location: {str(e)}")
     
     def apply_font_settings(self):
-                # Apply font settings to the notes text widget
+        # Apply font settings to all text widgets
         try:
             notes_font_family = self.settings_manager.get_setting("appearance", "notes_font_family")
             notes_font_size = self.settings_manager.get_setting("appearance", "notes_font_size")
             
             # Provide defaults if settings return None
             if notes_font_family is None:
-                notes_font_family = "Segoe UI"
+                notes_font_family = "Arial"
             if notes_font_size is None:
                 notes_font_size = 10
                 
-            self.notes_text.configure(font=(notes_font_family, notes_font_size))
+            font_tuple = (notes_font_family, notes_font_size)
+            
+            # Apply to main notes text widget
+            if hasattr(self, 'notes_text'):
+                self.notes_text.configure(font=font_tuple)
+            
+            # Apply to search details text widget
+            if hasattr(self, 'search_details_text'):
+                self.search_details_text.configure(font=font_tuple)
+            
+            # Apply to bulk IP text widget (use monospace font for IP addresses)
+            if hasattr(self, 'bulk_ip_text'):
+                # Use monospace font for better IP address readability
+                self.bulk_ip_text.configure(font=("Consolas", notes_font_size))
+                
         except Exception as e:
             print(f"Error applying font settings: {e}")
             # Apply default font as fallback
-            self.notes_text.configure(font=("Segoe UI", 10))
+            default_font = ("Arial", 10)
+            if hasattr(self, 'notes_text'):
+                self.notes_text.configure(font=default_font)
+            if hasattr(self, 'search_details_text'):
+                self.search_details_text.configure(font=default_font)
+            if hasattr(self, 'bulk_ip_text'):
+                self.bulk_ip_text.configure(font=("Consolas", 10))
 
 def main():
-            # Initialize and run the SOC Case Logger application
-    import platform
-    import sys
-    
+    # Initialize and run the SOC Case Logger application
     root = tk.Tk()
-    
-    # Detect operating system for better color compatibility
-    is_windows = platform.system() == "Windows"
-    is_macos = platform.system() == "Darwin"
-    is_linux = platform.system() == "Linux"
-    
-    # Windows-compatible color scheme
-    if is_windows:
-        # Softer, Windows-native looking colors
-        warm_bg = '#f0f0f0'        # Light gray (Windows standard)
-        warm_text = '#000000'      # Black text
-        warm_accent = '#0078d4'    # Windows blue accent
-        warm_entry = '#ffffff'     # Pure white for entry fields
-        warm_frame = '#e1e1e1'     # Light gray for frames
-        warm_button = '#0078d4'    # Windows blue for buttons
-        warm_button_text = '#ffffff'  # White text on buttons
-        warm_success = '#107c10'   # Windows green
-        warm_danger = '#d13438'    # Windows red
-        warm_warning = '#ff8c00'   # Windows orange
-    else:
-        # Original warm colors for macOS/Linux
-        warm_bg = '#f5f2e8'        # Warm cream background
-        warm_text = '#2c1810'      # Dark brown text
-        warm_accent = '#8b6914'    # Golden brown accent
-        warm_entry = '#fefcf7'     # Very light cream for entry fields
-        warm_frame = '#ede8dc'     # Slightly darker cream for frames
-        warm_button = '#b8860b'    # Dark golden rod for buttons
-        warm_button_text = '#ffffff'  # White text on buttons
-        warm_success = '#228b22'   # Forest green
-        warm_danger = '#b22222'    # Fire brick red
-        warm_warning = '#cd853f'   # Peru orange
-    
-    # Set the main window background
-    root.configure(bg=warm_bg)
-    
-    # Configure theme based on operating system
-    style = ttk.Style()
-    
-    if is_windows:
-        # Use Windows native theme as base
-        try:
-            style.theme_use('winnative')
-        except:
-            try:
-                style.theme_use('vista')
-            except:
-                style.theme_use('default')
-    else:
-        # Use best available theme for other platforms
-        available_themes = style.theme_names()
-        if 'aqua' in available_themes and is_macos:
-            style.theme_use('aqua')
-        elif 'alt' in available_themes:
-            style.theme_use('alt')
-        elif 'clam' in available_themes:
-            style.theme_use('clam')
-        else:
-            style.theme_use('default')
-    
-    # Configure universal styles
-    style.configure('.', background=warm_bg, foreground=warm_text)
-    
-    # Frame styling - more conservative for Windows
-    style.configure('TFrame', background=warm_bg, borderwidth=0)
-    style.configure('TLabelFrame', 
-                   background=warm_bg, 
-                   foreground=warm_accent, 
-                   borderwidth=1 if is_windows else 2,
-                   relief='solid' if is_windows else 'groove')
-    style.configure('TLabelFrame.Label', 
-                   background=warm_bg, 
-                   foreground=warm_accent, 
-                   font=('Segoe UI', 9, 'bold') if is_windows else ('Arial', 9, 'bold'))
-    
-    # Label styling
-    style.configure('TLabel', 
-                   background=warm_bg, 
-                   foreground=warm_text, 
-                   font=('Segoe UI', 9) if is_windows else ('Arial', 9))
-    
-    # Entry and Combobox styling - Windows-friendly
-    if is_windows:
-        style.configure('TEntry', 
-                       fieldbackground=warm_entry, 
-                       foreground=warm_text, 
-                       borderwidth=1,
-                       relief='solid')
-        
-        style.configure('TCombobox', 
-                       fieldbackground=warm_entry, 
-                       foreground=warm_text, 
-                       borderwidth=1,
-                       relief='solid')
-    else:
-        style.configure('TEntry', 
-                       fieldbackground=warm_entry, 
-                       foreground=warm_text, 
-                       bordercolor=warm_accent,
-                       borderwidth=2,
-                       relief='solid')
-        
-        style.configure('TCombobox', 
-                       fieldbackground=warm_entry, 
-                       foreground=warm_text, 
-                       bordercolor=warm_accent,
-                       borderwidth=2,
-                       relief='solid',
-                       arrowcolor=warm_accent)
-    
-    # Button styling - platform-specific
-    if is_windows:
-        # For Windows, we'll use regular tk.Button for colored buttons since ttk doesn't work well
-        # Store button colors for Windows custom button creation
-        root.windows_button_colors = {
-            'default': {'bg': warm_button, 'fg': warm_button_text, 'activebackground': '#106ebe', 'activeforeground': 'white'},
-            'accent': {'bg': warm_warning, 'fg': 'white', 'activebackground': '#e6950d', 'activeforeground': 'white'},
-            'success': {'bg': warm_success, 'fg': 'white', 'activebackground': '#0e6b0e', 'activeforeground': 'white'},
-            'urgent': {'bg': warm_danger, 'fg': 'white', 'activebackground': '#b8292d', 'activeforeground': 'white'}
-        }
-        
-        # Configure regular ttk buttons for non-colored use
-        style.configure('TButton', 
-                       background=warm_frame, 
-                       foreground=warm_text, 
-                       borderwidth=1,
-                       relief='raised',
-                       padding=(8, 4),
-                       font=('Segoe UI', 9))
-        
-        # Windows button state mapping for regular buttons
-        style.map('TButton',
-                  background=[('active', '#d0d0d0'), 
-                             ('pressed', '#c0c0c0'),
-                             ('!disabled', warm_frame)],
-                  foreground=[('active', warm_text), 
-                             ('pressed', warm_text),
-                             ('!disabled', warm_text)],
-                  relief=[('pressed', 'sunken'), 
-                         ('!pressed', 'raised')])
-        
-        # Don't configure colored ttk button styles for Windows - we'll use tk.Button instead
-        # This prevents the white background issue
-    else:
-        # Original styling for macOS/Linux
-        style.configure('TButton', 
-                       background=warm_button, 
-                       foreground=warm_button_text, 
-                       bordercolor=warm_accent,
-                       borderwidth=2,
-                       relief='raised',
-                       font=('Arial', 9, 'bold'))
-        
-        style.map('TButton',
-                  background=[('active', warm_accent), 
-                             ('pressed', warm_accent),
-                             ('focus', warm_button)],
-                  foreground=[('active', warm_button_text), 
-                             ('pressed', warm_button_text),
-                             ('focus', warm_button_text)])
-        
-        # Specialized button styles
-        style.configure('Accent.TButton', 
-                       background=warm_warning, 
-                       foreground='white',
-                       bordercolor=warm_accent,
-                       font=('Arial', 9, 'bold'))
-        
-        style.configure('Success.TButton', 
-                       background=warm_success, 
-                       foreground='white',
-                       bordercolor='#1a6b1a',
-                       font=('Arial', 9, 'bold'))
-        
-        style.configure('Urgent.TButton', 
-                       background=warm_danger, 
-                       foreground='white',
-                       bordercolor='#8b1a1a',
-                       font=('Arial', 9, 'bold'))
-    
-    # Notebook (tab) styling
-    style.configure('TNotebook', 
-                   background=warm_bg,
-                   borderwidth=1 if is_windows else 0,
-                   relief='solid' if is_windows else 'flat')
-    style.configure('TNotebook.Tab', 
-                   background=warm_frame, 
-                   foreground=warm_text,
-                   padding=(12, 8) if is_windows else (10, 6),
-                   font=('Segoe UI', 9) if is_windows else ('Arial', 9),
-                   borderwidth=1 if is_windows else 0,
-                   relief='raised' if is_windows else 'flat')
-    style.map('TNotebook.Tab',
-              background=[('selected', warm_entry if is_windows else warm_bg),
-                         ('active', warm_accent)],
-              foreground=[('selected', warm_text),
-                         ('active', warm_button_text)],
-              relief=[('selected', 'sunken' if is_windows else 'flat'),
-                     ('!selected', 'raised' if is_windows else 'flat')])
-    
-    # Treeview styling
-    style.configure('Treeview', 
-                   background=warm_entry,
-                   foreground=warm_text,
-                   fieldbackground=warm_entry,
-                   borderwidth=1,
-                   relief='solid')
-    style.configure('Treeview.Heading',
-                   background=warm_frame,
-                   foreground=warm_text,
-                   font=('Segoe UI', 9, 'bold') if is_windows else ('Arial', 9, 'bold'))
-    
-    # Scrollbar styling
-    style.configure('Vertical.TScrollbar',
-                   background=warm_frame,
-                   bordercolor=warm_accent,
-                   arrowcolor=warm_text,
-                   darkcolor=warm_frame,
-                   lightcolor=warm_entry)
-    
-    # Configure option database for non-ttk widgets (like Text)
-    root.option_add('*Text*background', warm_entry)
-    root.option_add('*Text*foreground', warm_text)
-    root.option_add('*Text*insertBackground', warm_text)
-    root.option_add('*Text*selectBackground', warm_accent)
-    root.option_add('*Text*selectForeground', warm_button_text)
-    root.option_add('*Text*borderWidth', '1' if is_windows else '2')
-    root.option_add('*Text*relief', 'solid')
-    
-    # Canvas styling
-    root.option_add('*Canvas*background', warm_bg)
-    root.option_add('*Canvas*highlightBackground', warm_bg)
-    
-    # Try different themes to find one that accepts custom colors better
-    available_themes = style.theme_names()
-    if 'alt' in available_themes:
-        style.theme_use('alt')
-    elif 'default' in available_themes:
-        style.theme_use('default')
-    else:
-        style.theme_use('clam')
-    
-    # Force configure all ttk styles with warm colors - more aggressive approach
-    style.configure('.', background=warm_bg, foreground=warm_text)
-    
-    # Frame styling
-    style.configure('TFrame', background=warm_bg, borderwidth=0)
-    style.configure('TLabelFrame', 
-                   background=warm_bg, 
-                   foreground=warm_accent, 
-                   borderwidth=2,
-                   relief='groove')
-    style.configure('TLabelFrame.Label', 
-                   background=warm_bg, 
-                   foreground=warm_accent, 
-                   font=('Segoe UI', 9, 'bold'))
-    
-    # Label styling
-    style.configure('TLabel', 
-                   background=warm_bg, 
-                   foreground=warm_text, 
-                   font=('Segoe UI', 9))
-    
-    # Entry and Combobox styling - force the colors
-    style.configure('TEntry', 
-                   fieldbackground=warm_entry, 
-                   foreground=warm_text, 
-                   bordercolor=warm_accent,
-                   lightcolor=warm_accent,
-                   darkcolor=warm_accent,
-                   borderwidth=2,
-                   relief='solid')
-    
-    style.configure('TCombobox', 
-                   fieldbackground=warm_entry, 
-                   foreground=warm_text, 
-                   bordercolor=warm_accent,
-                   lightcolor=warm_accent,
-                   darkcolor=warm_accent,
-                   borderwidth=2,
-                   relief='solid',
-                   arrowcolor=warm_accent)
-    
-    # Button styling with warm colors - more specific
-    style.configure('TButton', 
-                   background=warm_button, 
-                   foreground=warm_button_text, 
-                   bordercolor=warm_accent,
-                   lightcolor=warm_button,
-                   darkcolor=warm_accent,
-                   borderwidth=2,
-                   relief='raised',
-                   font=('Segoe UI', 9, 'bold'))
-    
-    # Button state mappings
-    style.map('TButton',
-              background=[('active', warm_accent), 
-                         ('pressed', warm_accent),
-                         ('focus', warm_button)],
-              foreground=[('active', warm_button_text), 
-                         ('pressed', warm_button_text),
-                         ('focus', warm_button_text)],
-              bordercolor=[('active', warm_text),
-                          ('pressed', warm_text)])
-    
-    # Specialized button styles
-    style.configure('Accent.TButton', 
-                   background='#cd853f', 
-                   foreground='white',
-                   bordercolor=warm_accent,
-                   font=('Segoe UI', 9, 'bold'))
-    
-    style.configure('Success.TButton', 
-                   background='#228b22', 
-                   foreground='white',
-                   bordercolor='#1a6b1a',
-                   font=('Segoe UI', 9, 'bold'))
-    
-    style.configure('Urgent.TButton', 
-                   background='#b22222', 
-                   foreground='white',
-                   bordercolor='#8b1a1a',
-                   font=('Segoe UI', 9, 'bold'))
-    
-    # Configure option database for Text widgets and other non-ttk widgets
-    root.option_add('*Text*background', warm_entry)
-    root.option_add('*Text*foreground', warm_text)
-    # Canvas styling
-    root.option_add('*Canvas*background', warm_bg)
-    root.option_add('*Canvas*highlightBackground', warm_bg)
-    
-    # Force update the display
-    root.update_idletasks()
-    
     app = SOCCaseLogger(root)
     root.mainloop()
 

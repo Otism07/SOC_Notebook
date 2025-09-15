@@ -5,7 +5,7 @@
     "auto_save_interval": 0
   },
   "data_export": {
-    "save_location": "",
+    "save_location": "/Users/oaty/Documents/Python3/Work/SOC-Notebook/data",
     "export_format": "JSON",
     "compress_old_files": false,
     "backup_enabled": false,

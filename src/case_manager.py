@@ -31,8 +31,13 @@ class CaseManager:
                     data = json.load(file)
                     # Convert each JSON object back to Case object
                     for case_data in data:
-                        case = Case.from_dict(case_data)
-                        self.cases[case.case_id] = case
+                        try:
+                            case = Case.from_dict(case_data)
+                            self.cases[case.case_id] = case
+                        except Exception as case_error:
+                            print(f"Error loading individual case {case_data.get('case_id', 'unknown')}: {case_error}")
+                            # Continue loading other cases even if one fails
+                            continue
             except (json.JSONDecodeError, FileNotFoundError, KeyError) as e:
                 print(f"Error loading cases: {e}")
                 self.cases = {}
