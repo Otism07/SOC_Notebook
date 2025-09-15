@@ -1,27 +1,42 @@
+# Standard library imports
 import json
 import os
 from typing import List, Optional
+
+# Local imports
 from models.case import Case
 
 class CaseManager:
+    """
+    Manages SOC case data including CRUD operations, search functionality,
+    and JSON file persistence. Handles case storage and retrieval operations.
+    """
+    
     def __init__(self, data_file: str = "data/cases.json"):
+        """
+        Initialize the CaseManager with a specified data file location.
+        
+        Args:
+            data_file: Path to the JSON file for storing case data
+        """
         self.data_file = data_file
-        self.cases = {}
+        self.cases = {}  # Dictionary to store cases in memory (case_id -> Case object)
         self.ensure_data_directory()
         self.load_cases()
 
     def ensure_data_directory(self):
-        """Ensure the data directory exists"""
+        """Create the data directory if it doesn't exist"""
         data_dir = os.path.dirname(self.data_file)
         if data_dir and not os.path.exists(data_dir):
             os.makedirs(data_dir)
 
     def load_cases(self):
-        """Load cases from the JSON file"""
+        """Load all cases from the JSON file into memory"""
         if os.path.exists(self.data_file):
             try:
                 with open(self.data_file, 'r') as file:
                     data = json.load(file)
+                    # Convert each JSON object back to Case object
                     for case_data in data:
                         case = Case.from_dict(case_data)
                         self.cases[case.case_id] = case
@@ -30,39 +45,79 @@ class CaseManager:
                 self.cases = {}
 
     def save_cases(self):
-        """Save all cases to the JSON file"""
+        """Save all cases from memory to the JSON file"""
         try:
             with open(self.data_file, 'w') as file:
+                # Convert Case objects to dictionaries for JSON serialization
                 cases_data = [case.to_dict() for case in self.cases.values()]
                 json.dump(cases_data, file, indent=4)
         except Exception as e:
             print(f"Error saving cases: {e}")
 
     def create_case(self, case_id: str, title: str = "", description: str = "", **kwargs) -> Case:
-        """Create a new case"""
+        """
+        Create a new case with the specified parameters.
+        
+        Args:
+            case_id: Unique identifier for the case
+            title: Case title
+            description: Case description
+            **kwargs: Additional case properties
+            
+        Returns:
+            Case: The newly created case object
+        """
         case = Case(case_id=case_id, title=title, description=description, **kwargs)
         self.cases[case_id] = case
         self.save_cases()
         return case
 
     def save_case(self, case: Case):
-        """Save or update a case"""
-        case.update_timestamp()
+        """
+        Save or update an existing case.
+        
+        Args:
+            case: Case object to save
+        """
+        case.update_timestamp()  # Update the last modified time
         self.cases[case.case_id] = case
         self.save_cases()
 
     def get_case(self, case_id: str) -> Optional[Case]:
-        """Retrieve a case by ID"""
+        """
+        Retrieve a specific case by its ID.
+        
+        Args:
+            case_id: The unique identifier of the case
+            
+        Returns:
+            Case object if found, None otherwise
+        """
         return self.cases.get(case_id)
 
     def get_all_cases(self) -> List[Case]:
-        """Get all cases"""
+        """
+        Get all cases currently stored in the system.
+        
+        Returns:
+            List of all Case objects
+        """
         return list(self.cases.values())
 
     def update_case(self, case_id: str, **updates):
-        """Update a case with new information"""
+        """
+        Update specific fields of an existing case.
+        
+        Args:
+            case_id: The unique identifier of the case to update
+            **updates: Dictionary of field names and new values
+            
+        Returns:
+            Updated Case object if found, None otherwise
+        """
         if case_id in self.cases:
             case = self.cases[case_id]
+            # Update only the specified fields
             for key, value in updates.items():
                 if hasattr(case, key):
                     setattr(case, key, value)
@@ -72,7 +127,15 @@ class CaseManager:
         return None
 
     def delete_case(self, case_id: str) -> bool:
-        """Delete a case"""
+        """
+        Delete a case from the system.
+        
+        Args:
+            case_id: The unique identifier of the case to delete
+            
+        Returns:
+            True if case was deleted, False if case not found
+        """
         if case_id in self.cases:
             del self.cases[case_id]
             self.save_cases()
@@ -80,12 +143,20 @@ class CaseManager:
         return False
 
     def search_cases(self, search_term: str) -> List[Case]:
-        """Search cases by various fields"""
+        """
+        Search for cases containing the specified term in any field.
+        
+        Args:
+            search_term: The text to search for (case-insensitive)
+            
+        Returns:
+            List of Case objects matching the search criteria
+        """
         search_term = search_term.lower()
         results = []
         
         for case in self.cases.values():
-            # Search in multiple fields
+            # Search across multiple case fields
             searchable_fields = [
                 case.case_id.lower(),
                 case.title.lower(),
@@ -98,21 +169,46 @@ class CaseManager:
                 case.outcome.lower()
             ]
             
+            # Check if search term appears in any field
             if any(search_term in field for field in searchable_fields):
                 results.append(case)
         
         return results
 
     def get_cases_by_status(self, status: str) -> List[Case]:
-        """Get all cases with a specific status"""
+        """
+        Get all cases with a specific status.
+        
+        Args:
+            status: The status to filter by (case-insensitive)
+            
+        Returns:
+            List of Case objects with the specified status
+        """
         return [case for case in self.cases.values() if case.status.lower() == status.lower()]
 
     def get_cases_by_user(self, user: str) -> List[Case]:
-        """Get all cases for a specific user"""
+        """
+        Get all cases associated with a specific user.
+        
+        Args:
+            user: The username to filter by (case-insensitive)
+            
+        Returns:
+            List of Case objects for the specified user
+        """
         return [case for case in self.cases.values() if case.user.lower() == user.lower()]
 
     def export_cases(self, filename: str):
-        """Export all cases to a JSON file"""
+        """
+        Export all cases to a specified JSON file.
+        
+        Args:
+            filename: Path to the export file
+            
+        Raises:
+            Exception: If export operation fails
+        """
         try:
             with open(filename, 'w') as file:
                 cases_data = [case.to_dict() for case in self.cases.values()]
@@ -121,10 +217,19 @@ class CaseManager:
             raise Exception(f"Error exporting cases: {e}")
 
     def import_cases(self, filename: str):
-        """Import cases from a JSON file"""
+        """
+        Import cases from a JSON file.
+        
+        Args:
+            filename: Path to the import file
+            
+        Raises:
+            Exception: If import operation fails
+        """
         try:
             with open(filename, 'r') as file:
                 data = json.load(file)
+                # Convert imported data to Case objects
                 for case_data in data:
                     case = Case.from_dict(case_data)
                     self.cases[case.case_id] = case
@@ -133,11 +238,17 @@ class CaseManager:
             raise Exception(f"Error importing cases: {e}")
 
     def get_case_statistics(self):
-        """Get statistics about cases"""
+        """
+        Generate statistics about the current cases.
+        
+        Returns:
+            Dictionary containing case counts by status and outcome
+        """
         total_cases = len(self.cases)
         status_counts = {}
         outcome_counts = {}
         
+        # Count cases by status and outcome
         for case in self.cases.values():
             status_counts[case.status] = status_counts.get(case.status, 0) + 1
             outcome_counts[case.outcome] = outcome_counts.get(case.outcome, 0) + 1

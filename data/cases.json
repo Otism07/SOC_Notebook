@@ -1,1 +1,22 @@
-[]
+[
+  {
+    "case_id": "SOC-15-09-2025_09-48-38",
+    "timestamp": "2025-09-15T09:48:38.047795",
+    "created_date": "2025-09-15 09:48:38",
+    "details": {
+      "user": "qwqw",
+      "role": "wqw",
+      "email": "qwqw",
+      "hostname": "",
+      "ip_address": "",
+      "file_hash": "",
+      "url": ""
+    },
+    "outcome": {
+      "classification": "Benign",
+      "outcome_type": "False-Positive"
+    },
+    "notes": "User: qwqw\nEmail: qwqw\nRole: wqw\n\nIP Address      Reports  Confidence   Country         ISP                  Usage Type     \n--------------------------------------------------------------------------------\n2.2.2.2         1        0%           US              Oracle America Inc   Data Center/Web Hosting/Transit\n3.3.3.3         3        0%           US              Amazon Technologie   Data Center/Web Hosting/Transit\n2.2.2.1         0        0%           US              Oracle America Inc   Data Center/Web Hosting/Transit\n\nScan completed with 3 results\n\nVerdict: Benign, False-Positive",
+    "status": "completed"
+  }
+]

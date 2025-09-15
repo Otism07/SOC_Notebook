@@ -1,15 +1,15 @@
 # SOC Case Logger
 
-A comprehensive Python-based GUI application for Security Operations Center (SOC) analysts to document, track, and manage security incidents and investigations.
+A comprehensive Python-based GUI application for Security Operations Center (SOC) analysts to document, track, and manage security incidents and investigations. Built with modern Python practices, secure credential management, and integration with leading threat intelligence platforms.
 
 ## Features
 
 ### 🔍 Case Management
-- **Create & Track Cases**: Generate unique case IDs with timestamps
+- **Create & Track Cases**: Generate unique case IDs with customizable timestamp formats
 - **Comprehensive Data Capture**: Record user details, IP addresses, file hashes, URLs, and hostnames
-- **Case Classification**: Categorize incidents as Benign, Suspicious, or Malicious
-- **Outcome Tracking**: Document resolution outcomes (True Positive, False Positive, etc.)
-- **Rich Note-Taking**: Detailed description and investigation notes with formatting support
+- **Case Classification**: Categorize incidents as Benign, Suspicious, or Malicious with detailed outcomes
+- **Outcome Tracking**: Document resolution outcomes (True Positive, False Positive, Incident Confirmed, etc.)
+- **Rich Note-Taking**: Detailed description and investigation notes with automatic header generation
 
 ### 🌐 Threat Intelligence Integration
 - **AbuseIPDB Integration**: Automated IP reputation checks with abuse confidence scoring

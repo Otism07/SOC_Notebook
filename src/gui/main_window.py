@@ -1,3 +1,4 @@
+# Standard library imports
 import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext, filedialog
 import json
@@ -5,21 +6,32 @@ import os
 import requests
 from datetime import datetime
 import sys
+import re
+import time
+
+# Add parent directory to path for module imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Local imports
 from models.case import Case
 from case_manager import CaseManager
 from settings_manager import SettingsManager
 
 class SOCCaseLogger:
+    """
+    Main GUI application for SOC (Security Operations Center) case logging.
+    Provides a tabbed interface for case management, search functionality, and settings.
+    """
+    
     def __init__(self, root):
+        """Initialize the SOC Case Logger application"""
         self.root = root
         self.root.title("SOC Case Logger")
         self.root.geometry("950x850")
-        # Warm, comfortable background color
+        # Set warm, comfortable background color
         self.root.configure(bg='#f5f2e8')
         
-        # Initialize settings manager first
+        # Initialize settings manager first (handles configuration and API keys)
         self.settings_manager = SettingsManager()
         
         # Initialize case manager with configured data directory
@@ -38,12 +50,14 @@ class SOCCaseLogger:
         self.role_var.trace('w', self.on_field_change)
         self.host_var.trace('w', self.on_field_change)
         
+        # Load any existing cases on startup
         self.load_existing_cases()
         
         # Apply font settings after all widgets are created
         self.apply_font_settings()
         
     def create_widgets(self):
+        """Create the main UI structure with tabbed interface"""
         # Create main frame
         main_frame = ttk.Frame(self.root)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -52,50 +66,49 @@ class SOCCaseLogger:
         self.notebook = ttk.Notebook(main_frame)
         self.notebook.pack(fill=tk.BOTH, expand=True)
         
-        # Create General tab
+        # Create tabs
         general_frame = ttk.Frame(self.notebook)
         self.notebook.add(general_frame, text="General")
         
-        # Create Search tab
         search_frame = ttk.Frame(self.notebook)
         self.notebook.add(search_frame, text="Search")
         
-        # Create Settings tab
+        bulk_lookup_frame = ttk.Frame(self.notebook)
+        self.notebook.add(bulk_lookup_frame, text="Bulk Lookup")
+        
         settings_frame = ttk.Frame(self.notebook)
         self.notebook.add(settings_frame, text="Settings")
         
-        # Create main content in General tab
+        # Create content for each tab
         self.create_main_content(general_frame)
-        
-        # Create search content in Search tab
         self.create_search_content(search_frame)
-        
-        # Create settings content in Settings tab
+        self.create_bulk_lookup_content(bulk_lookup_frame)
         self.create_settings_content(settings_frame)
         
     def create_main_content(self, parent_frame):
+        """Create the General tab content for case creation and editing"""
         # Main content area (previously general tab)
         content_frame = ttk.Frame(parent_frame)
         content_frame.pack(fill=tk.BOTH, expand=True)
         
-        # Left column - Fixed width, no expansion
+        # Left column - Fixed width for input fields
         left_frame = ttk.Frame(content_frame, width=350)
         left_frame.pack(side=tk.LEFT, fill=tk.Y, expand=False, padx=5, pady=5)
         left_frame.pack_propagate(False)  # Prevent frame from shrinking to fit contents
         
-        # Details section (consolidated)
+        # Details section for case information input
         details_frame = ttk.LabelFrame(left_frame, text="Details")
         details_frame.pack(fill=tk.X, pady=5)
         
         # Configure grid columns for proper layout
         details_frame.grid_columnconfigure(1, weight=1)  # Make entry column expandable
         
-        # User
+        # User input field
         ttk.Label(details_frame, text="User:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
         self.user_var = tk.StringVar()
         ttk.Entry(details_frame, textvariable=self.user_var, width=20).grid(row=0, column=1, sticky=tk.EW, padx=5, pady=2)
         
-        # Email
+        # Email input field
         ttk.Label(details_frame, text="Email:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
         self.email_var = tk.StringVar()
         ttk.Entry(details_frame, textvariable=self.email_var, width=20).grid(row=1, column=1, sticky=tk.EW, padx=5, pady=2)
@@ -210,20 +223,23 @@ class SOCCaseLogger:
         self.notes_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
     def create_search_content(self, parent_frame):
-        """Create the search tab content for finding saved cases"""
-        # Main search frame
+        """
+        Create the Search tab content for finding and managing saved cases.
+        Provides search controls, results table, and case detail view.
+        """
+        # Main search frame container
         search_main_frame = ttk.Frame(parent_frame)
         search_main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # Search controls frame
+        # Search controls section for input criteria
         search_controls_frame = ttk.LabelFrame(search_main_frame, text="Search Criteria")
         search_controls_frame.pack(fill=tk.X, pady=(0, 10))
         
-        # Configure grid columns
+        # Configure grid columns for proper layout
         search_controls_frame.grid_columnconfigure(1, weight=1)
         search_controls_frame.grid_columnconfigure(3, weight=1)
         
-        # Search term input
+        # Search term input field
         ttk.Label(search_controls_frame, text="Search Term:").grid(row=0, column=0, sticky=tk.W, padx=(10, 5), pady=5)
         self.search_term_var = tk.StringVar()
         search_entry = ttk.Entry(search_controls_frame, textvariable=self.search_term_var, width=30)
@@ -306,18 +322,115 @@ class SOCCaseLogger:
         ttk.Button(load_button_frame, text="Load Case to General Tab", 
                   command=self.load_case_to_general, style='Success.TButton').pack(pady=5)
 
+    def create_bulk_lookup_content(self, parent_frame):
+        """
+        Create the Bulk Lookup tab content for mass IP address scanning.
+        Allows users to paste multiple IP addresses and scan them against AbuseIPDB,
+        displaying results in an easy-to-read table format for copying to notes.
+        """
+        # Main bulk lookup frame
+        bulk_main_frame = ttk.Frame(parent_frame)
+        bulk_main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Input section for IP addresses
+        input_frame = ttk.LabelFrame(bulk_main_frame, text="IP Address Input")
+        input_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        # Instructions label
+        instructions = ttk.Label(input_frame, 
+                               text="Paste IP addresses below (one per line or separated by commas/spaces):",
+                               font=('Segoe UI', 9))
+        instructions.pack(anchor=tk.W, padx=10, pady=(10, 5))
+        
+        # IP input text area
+        self.bulk_ip_text = scrolledtext.ScrolledText(input_frame, height=8, width=70,
+                                                     bg='#fefcf7', fg='#2c1810',
+                                                     font=('Consolas', 15))
+        self.bulk_ip_text.pack(fill=tk.X, padx=10, pady=(0, 10))
+        
+        # Control buttons frame
+        control_frame = ttk.Frame(input_frame)
+        control_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+        
+        # Scan button
+        ttk.Button(control_frame, text="Scan All IPs", 
+                  command=self.bulk_scan_ips, style='Accent.TButton').pack(side=tk.LEFT, padx=(0, 5))
+        
+        # Clear input button
+        ttk.Button(control_frame, text="Clear Input", 
+                  command=self.clear_bulk_input).pack(side=tk.LEFT, padx=5)
+        
+        # Copy results button
+        ttk.Button(control_frame, text="Copy Results", 
+                  command=self.copy_bulk_results).pack(side=tk.LEFT, padx=5)
+        
+        # Copy for notes button  
+        ttk.Button(control_frame, text="Copy for Notes", 
+                  command=self.copy_bulk_results_for_notes).pack(side=tk.LEFT, padx=5)
+        
+        # Progress bar
+        self.bulk_progress = ttk.Progressbar(control_frame, mode='determinate')
+        self.bulk_progress.pack(side=tk.RIGHT, fill=tk.X, expand=True, padx=(20, 0))
+        
+        # Results section
+        results_frame = ttk.LabelFrame(bulk_main_frame, text="Scan Results")
+        results_frame.pack(fill=tk.BOTH, expand=True, pady=(5, 0))
+        
+        # Create treeview for results display
+        columns = ('IP Address', 'Reports', 'Confidence %', 'Country', 'ISP', 'Usage Type', 'Hostnames')
+        self.bulk_results_tree = ttk.Treeview(results_frame, columns=columns, show='headings', height=15)
+        
+        # Configure column headings and widths
+        self.bulk_results_tree.heading('IP Address', text='IP Address')
+        self.bulk_results_tree.heading('Reports', text='Reports')
+        self.bulk_results_tree.heading('Confidence %', text='Confidence %')
+        self.bulk_results_tree.heading('Country', text='Country')
+        self.bulk_results_tree.heading('ISP', text='ISP')
+        self.bulk_results_tree.heading('Usage Type', text='Usage Type')
+        self.bulk_results_tree.heading('Hostnames', text='Hostnames')
+
+        # Set column widths
+        self.bulk_results_tree.column('IP Address', width=120, minwidth=100)
+        self.bulk_results_tree.column('Reports', width=80, minwidth=60)
+        self.bulk_results_tree.column('Confidence %', width=100, minwidth=80)
+        self.bulk_results_tree.column('Country', width=100, minwidth=80)
+        self.bulk_results_tree.column('ISP', width=150, minwidth=120)
+        self.bulk_results_tree.column('Usage Type', width=120, minwidth=100)
+        self.bulk_results_tree.column('Hostnames', width=200, minwidth=150)
+        
+        # Add scrollbar for results treeview
+        results_scrollbar = ttk.Scrollbar(results_frame, orient=tk.VERTICAL, command=self.bulk_results_tree.yview)
+        self.bulk_results_tree.configure(yscrollcommand=results_scrollbar.set)
+        
+        # Pack treeview and scrollbar
+        self.bulk_results_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(10, 0), pady=10)
+        results_scrollbar.pack(side=tk.RIGHT, fill=tk.Y, padx=(0, 10), pady=10)
+        
+        # Status label for bulk operations
+        self.bulk_status_var = tk.StringVar()
+        self.bulk_status_var.set("Ready for bulk IP scanning")
+        bulk_status_label = ttk.Label(bulk_main_frame, textvariable=self.bulk_status_var,
+                                     relief=tk.SUNKEN, anchor=tk.W)
+        bulk_status_label.pack(side=tk.BOTTOM, fill=tk.X, pady=(5, 0))
+
     def create_settings_content(self, parent_frame):
-        """Create the settings tab content"""
-        # Main settings frame with scrollbar
+        """
+        Create the Settings tab content for application configuration.
+        Includes API credentials, appearance settings, data management options,
+        and import/export functionality. Uses scrollable frame for all options.
+        """
+        # Main settings frame with scrollbar support
         settings_canvas = tk.Canvas(parent_frame, bg='#f5f2e8')
         settings_scrollbar = ttk.Scrollbar(parent_frame, orient="vertical", command=settings_canvas.yview)
         settings_scrollable_frame = ttk.Frame(settings_canvas)
         
+        # Configure scrolling behavior
         settings_scrollable_frame.bind(
             "<Configure>",
             lambda e: settings_canvas.configure(scrollregion=settings_canvas.bbox("all"))
         )
         
+        # Create scrollable window
         settings_canvas.create_window((0, 0), window=settings_scrollable_frame, anchor="nw")
         settings_canvas.configure(yscrollcommand=settings_scrollbar.set)
         
@@ -458,11 +571,15 @@ class SOCCaseLogger:
         ttk.Button(buttons_frame, text="Import Settings", command=self.import_settings).pack(side=tk.LEFT, padx=5)
 
     def update_notes_header(self):
-        """Update the notes header with consistent formatting, preserving existing entries"""
-        # Get current notes content
+        """
+        Update the case notes header with user information while preserving existing content.
+        Automatically formats and organizes user details at the top of the notes section.
+        Maintains consistent header structure across all cases.
+        """
+        # Get current notes content without trailing newlines
         current_content = self.notes_text.get('1.0', tk.END).rstrip('\n')
 
-        # Split content to separate header from other text
+        # Parse content to separate header information from investigation notes
         lines = current_content.split('\n')
         other_lines = []
         
@@ -598,14 +715,17 @@ class SOCCaseLogger:
         self.status_var.set(f"URL defanged and added to notes")
 
     def scan_hash_virustotal(self):
-        """Scan file hash using VirusTotal API and add results to notes"""
+        """
+        Scan a file hash using VirusTotal API and add results to case notes.
+        Validates API key, makes the request, and formats the response for display.
+        """
         file_hash = self.file_hash_var.get().strip()
         if not file_hash:
             messagebox.showwarning("Warning", "Please enter a file hash to scan")
             return
         
         try:
-            # Load API key from settings
+            # Load encrypted API key from settings
             credentials = self.settings_manager.load_api_credentials()
             api_key = credentials.get("virustotal_api_key", "").strip()
             
@@ -613,11 +733,11 @@ class SOCCaseLogger:
                 messagebox.showerror("Error", "VirusTotal API key not found. Please configure it in Settings.")
                 return
             
-            # Update status to show we're scanning
+            # Update status to show scanning progress
             self.status_var.set(f"Scanning hash with VirusTotal: {file_hash[:16]}...")
             self.root.update()
             
-            # Make API request to VirusTotal
+            # Make API request to VirusTotal v3 API
             url = f'https://www.virustotal.com/api/v3/files/{file_hash}'
             headers = {
                 'x-apikey': api_key
@@ -733,14 +853,17 @@ class SOCCaseLogger:
             self.status_var.set("Ready - No existing cases")
     
     def search_ip_abuseipdb(self):
-        """Search IP address using AbuseIPDB API and add results to Notes"""
+        """
+        Search an IP address using AbuseIPDB API and add threat intelligence to notes.
+        Provides abuse confidence percentage, ISP information, and hostname details.
+        """
         ip_address = self.ip_var.get().strip()
         if not ip_address:
             messagebox.showwarning("Warning", "Please enter an IP address to search")
             return
         
         try:
-            # Load API key from settings
+            # Load encrypted API key from settings
             credentials = self.settings_manager.load_api_credentials()
             api_key = credentials.get("abuseipdb_api_key", "").strip()
             
@@ -748,7 +871,7 @@ class SOCCaseLogger:
                 messagebox.showerror("Error", "AbuseIPDB API key not found. Please configure it in Settings.")
                 return
             
-            # Update status to show we're searching
+            # Update status to show search progress
             self.status_var.set(f"Searching AbuseIPDB for {ip_address}...")
             self.root.update()
             
@@ -817,6 +940,305 @@ class SOCCaseLogger:
             messagebox.showerror("Error", f"Error searching AbuseIPDB: {str(e)}")
             self.status_var.set("AbuseIPDB search failed")
     
+    def bulk_scan_ips(self):
+        """
+        Scan multiple IP addresses against AbuseIPDB and display results in a table.
+        Parses input text for IP addresses and performs batch scanning with progress indication.
+        """
+        # Get the input text and parse IP addresses
+        input_text = self.bulk_ip_text.get('1.0', tk.END).strip()
+        if not input_text:
+            messagebox.showwarning("Warning", "Please enter IP addresses to scan")
+            return
+        
+        # Parse IP addresses from input (supports multiple formats)
+        ip_addresses = self.parse_ip_addresses(input_text)
+        if not ip_addresses:
+            messagebox.showwarning("Warning", "No valid IP addresses found in input")
+            return
+        
+        # Check for API key
+        credentials = self.settings_manager.load_api_credentials()
+        api_key = credentials.get("abuseipdb_api_key", "").strip()
+        
+        if not api_key:
+            messagebox.showerror("Error", "AbuseIPDB API key not found. Please configure it in Settings.")
+            return
+        
+        # Clear previous results
+        for item in self.bulk_results_tree.get_children():
+            self.bulk_results_tree.delete(item)
+        
+        # Initialize progress bar
+        self.bulk_progress['maximum'] = len(ip_addresses)
+        self.bulk_progress['value'] = 0
+        
+        # Update status
+        self.bulk_status_var.set(f"Scanning {len(ip_addresses)} IP addresses...")
+        self.root.update()
+        
+        # Scan each IP address
+        successful_scans = 0
+        failed_scans = 0
+        
+        for i, ip_address in enumerate(ip_addresses):
+            try:
+                # Update progress
+                self.bulk_progress['value'] = i + 1
+                self.bulk_status_var.set(f"Scanning {ip_address} ({i+1}/{len(ip_addresses)})...")
+                self.root.update()
+                
+                # Perform the API call
+                result = self.scan_single_ip(ip_address, api_key)
+                
+                if result:
+                    # Add result to tree
+                    self.bulk_results_tree.insert('', tk.END, values=result)
+                    successful_scans += 1
+                else:
+                    # Add error entry
+                    self.bulk_results_tree.insert('', tk.END, values=(
+                        ip_address, 'Error', 'N/A', 'N/A', 'Failed to scan', 'N/A', 'N/A'
+                    ))
+                    failed_scans += 1
+                
+                # Small delay to respect rate limits
+                import time
+                time.sleep(1)  # 1 second delay between requests
+                
+            except Exception as e:
+                # Add error entry for failed scan
+                self.bulk_results_tree.insert('', tk.END, values=(
+                    ip_address, 'Error', 'N/A', 'N/A', f'Error: {str(e)[:30]}...', 'N/A', 'N/A'
+                ))
+                failed_scans += 1
+        
+        # Update final status
+        self.bulk_status_var.set(f"Scan complete: {successful_scans} successful, {failed_scans} failed")
+        
+        # Reset progress bar
+        self.bulk_progress['value'] = 0
+    
+    def parse_ip_addresses(self, text):
+        """
+        Parse IP addresses from input text supporting multiple formats.
+        
+        Args:
+            text: Input text containing IP addresses
+            
+        Returns:
+            List of unique valid IP addresses
+        """
+        import re
+        
+        # IP address regex pattern
+        ip_pattern = r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b'
+        
+        # Find all potential IP addresses
+        potential_ips = re.findall(ip_pattern, text)
+        
+        # Validate and deduplicate IP addresses
+        valid_ips = []
+        seen_ips = set()
+        
+        for ip in potential_ips:
+            # Basic validation (check if octets are <= 255)
+            try:
+                octets = ip.split('.')
+                if all(0 <= int(octet) <= 255 for octet in octets):
+                    if ip not in seen_ips:
+                        valid_ips.append(ip)
+                        seen_ips.add(ip)
+            except ValueError:
+                continue  # Skip invalid IPs
+        
+        return valid_ips
+    
+    def scan_single_ip(self, ip_address, api_key):
+        """
+        Scan a single IP address against AbuseIPDB API.
+        
+        Args:
+            ip_address: IP address to scan
+            api_key: AbuseIPDB API key
+            
+        Returns:
+            Tuple of result data for table display, or None if failed
+        """
+        try:
+            # Make API request to AbuseIPDB
+            url = 'https://api.abuseipdb.com/api/v2/check'
+            querystring = {
+                'ipAddress': ip_address,
+                'maxAgeInDays': '90',
+                'verbose': ''
+            }
+            headers = {
+                'Accept': 'application/json',
+                'Key': api_key
+            }
+            
+            response = requests.get(url, headers=headers, params=querystring, timeout=30)
+            response.raise_for_status()
+            
+            data = response.json()
+            
+            if 'data' in data:
+                ip_data = data['data']
+                
+                # Extract relevant information
+                reports = ip_data.get('totalReports', 0)
+                confidence = ip_data.get('abuseConfidencePercentage', 0)
+                country = ip_data.get('countryCode', 'Unknown')
+                isp = ip_data.get('isp', 'Unknown')
+                usage_type = ip_data.get('usageType', 'Unknown')
+                
+                # Handle multiple hostnames
+                hostnames = ip_data.get('hostnames', [])
+                hostname_str = ', '.join(hostnames[:2])  # Show first 2 hostnames
+                if len(hostnames) > 2:
+                    hostname_str += f' (+{len(hostnames)-2} more)'
+                if not hostname_str:
+                    hostname_str = 'None'
+                
+                return (ip_address, str(reports), f"{confidence}%", country, 
+                       isp[:30] + '...' if len(isp) > 30 else isp, 
+                       usage_type, hostname_str)
+            
+            return None
+            
+        except Exception as e:
+            print(f"Error scanning {ip_address}: {e}")
+            return None
+    
+    def clear_bulk_input(self):
+        """Clear the bulk IP input text area"""
+        self.bulk_ip_text.delete('1.0', tk.END)
+        self.bulk_status_var.set("Input cleared - ready for new IP addresses")
+    
+    def copy_bulk_results(self):
+        """Copy bulk scan results to clipboard in a formatted table"""
+        # Check if there are results to copy
+        if not self.bulk_results_tree.get_children():
+            messagebox.showwarning("Warning", "No results to copy")
+            return
+        
+        # Prepare formatted results
+        results_text = []
+        
+        # Add header
+        header = f"{'IP Address':<15} {'Reports':<8} {'Confidence':<12} {'Country':<15} {'ISP':<20} {'Usage Type':<15}"
+        results_text.append(header)
+        results_text.append("-" * 80)
+        
+        # Add each result
+        for item in self.bulk_results_tree.get_children():
+            values = self.bulk_results_tree.item(item)['values']
+            ip, reports, confidence, country, isp, usage_type, hostnames = values
+            
+            # Format row
+            row = f"{ip:<15} {reports:<8} {confidence:<12} {country:<15} {isp[:18]:<20} {usage_type:<15}"
+            results_text.append(row)
+            
+            # Add hostnames if available and not 'None'
+            if hostnames and hostnames != 'None':
+                results_text.append(f"{'':>16} Hostnames: {hostnames}")
+        
+        results_text.append("")
+        results_text.append(f"Scan completed with {len(self.bulk_results_tree.get_children())} results")
+        
+        # Copy to clipboard
+        formatted_results = '\n'.join(results_text)
+        self.root.clipboard_clear()
+        self.root.clipboard_append(formatted_results)
+        self.root.update()
+        
+        # Update status
+        self.bulk_status_var.set(f"Copied {len(self.bulk_results_tree.get_children())} results to clipboard")
+        messagebox.showinfo("Copy Complete", "Bulk scan results copied to clipboard.\nYou can now paste them into the notes section.")
+
+    def copy_bulk_results_for_notes(self):
+        """
+        Copy bulk scan results in a format optimized for case notes.
+        Creates a concise summary suitable for pasting into the notes section.
+        """
+        # Check if there are results to copy
+        if not self.bulk_results_tree.get_children():
+            messagebox.showwarning("Warning", "No results to copy")
+            return
+        
+        # Prepare notes-friendly format
+        results_text = []
+        results_text.append("Bulk IP Analysis Summary:")
+        results_text.append("")
+        
+        # Count results by confidence level
+        high_risk = []
+        medium_risk = []
+        low_risk = []
+        clean_ips = []
+        
+        for item in self.bulk_results_tree.get_children():
+            values = self.bulk_results_tree.item(item)['values']
+            ip, reports, confidence, country, isp, usage_type, hostnames = values
+            
+            try:
+                conf_percent = int(str(confidence).replace('%', ''))
+                if conf_percent >= 75:
+                    high_risk.append(f"{ip} ({confidence}% confidence, {reports} reports)")
+                elif conf_percent >= 25:
+                    medium_risk.append(f"{ip} ({confidence}% confidence, {reports} reports)")
+                elif conf_percent > 0:
+                    low_risk.append(f"{ip} ({confidence}% confidence, {reports} reports)")
+                else:
+                    clean_ips.append(f"{ip} (Clean - {reports} reports)")
+            except (ValueError, TypeError):
+                # Handle non-numeric confidence values (errors, etc.)
+                if 'Error' in str(confidence):
+                    results_text.append(f"⚠️  {ip} - Scan failed")
+                else:
+                    clean_ips.append(f"{ip} (Unknown risk)")
+        
+        # Add categorized results
+        if high_risk:
+            results_text.append("🔴 HIGH RISK IPs:")
+            for ip_info in high_risk:
+                results_text.append(f"   • {ip_info}")
+            results_text.append("")
+        
+        if medium_risk:
+            results_text.append("🟡 MEDIUM RISK IPs:")
+            for ip_info in medium_risk:
+                results_text.append(f"   • {ip_info}")
+            results_text.append("")
+        
+        if low_risk:
+            results_text.append("🟠 LOW RISK IPs:")
+            for ip_info in low_risk:
+                results_text.append(f"   • {ip_info}")
+            results_text.append("")
+        
+        if clean_ips:
+            results_text.append("✅ CLEAN IPs:")
+            for ip_info in clean_ips:
+                results_text.append(f"   • {ip_info}")
+            results_text.append("")
+        
+        # Add summary statistics
+        total_ips = len(self.bulk_results_tree.get_children())
+        results_text.append(f"Summary: {total_ips} IPs scanned")
+        results_text.append(f"High Risk: {len(high_risk)}, Medium Risk: {len(medium_risk)}, Low Risk: {len(low_risk)}, Clean: {len(clean_ips)}")
+        
+        # Copy to clipboard
+        formatted_results = '\n'.join(results_text)
+        self.root.clipboard_clear()
+        self.root.clipboard_append(formatted_results)
+        self.root.update()
+        
+        # Update status
+        self.bulk_status_var.set(f"Copied summary of {total_ips} IPs to clipboard (notes format)")
+        messagebox.showinfo("Copy Complete", "Bulk scan summary copied to clipboard in notes format.\nYou can now paste it into the case notes section.")
+
     def toggle_api_key_visibility(self, entry_widget):
         """Toggle the visibility of API key in entry widget"""
         if entry_widget['show'] == '*':
@@ -973,14 +1395,18 @@ class SOCCaseLogger:
             self.status_var.set("Clear operation cancelled")
     
     def save_case(self):
-        """Save the current case information to a JSON file in the data folder"""
+        """
+        Save the current case information to JSON files in the configured data directory.
+        Creates both individual case files and updates the main cases.json file.
+        Generates a unique case ID based on timestamp and user-configured format.
+        """
         try:
-            # Generate case ID with timestamp using settings format
+            # Generate unique case ID with timestamp using user's preferred format
             timestamp = datetime.now()
             date_format = self.settings_manager.get_case_id_format()
             case_id = f"SOC-{timestamp.strftime(date_format)}"
             
-            # Collect all case data
+            # Collect all case data into structured format
             case_data = {
                 "case_id": case_id,
                 "timestamp": timestamp.isoformat(),
@@ -1050,10 +1476,15 @@ class SOCCaseLogger:
             messagebox.showerror("Save Error", error_msg)
     
     def perform_search(self):
-        """Search through saved cases based on user input"""
+        """
+        Search through saved cases based on user input criteria.
+        Supports searching in specific fields or across all fields.
+        Displays results in a sortable table format.
+        """
         search_term = self.search_term_var.get().strip().lower()
         search_category = self.search_category_var.get()
         
+        # Validate search input
         if not search_term and search_category == 'All Fields':
             messagebox.showwarning("Search", "Please enter a search term")
             return

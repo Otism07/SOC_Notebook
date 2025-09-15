@@ -24,8 +24,7 @@ loguru>=0.6.0
 # For data validation (optional)
 jsonschema>=4.0.0
 
-# For cryptographic hashing (optional - for file hash generation)
-hashlib  # Built-in module
+# Note: hashlib is a built-in Python module and should not be installed via pip
 
 # For GUI enhancements (optional)
 pillow>=8.0.0  # For image handling in GUI

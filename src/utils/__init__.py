@@ -2,7 +2,6 @@
 Utility functions for SOC Case Logger
 """
 
-import hashlib
 import os
 import json
 import re
@@ -10,6 +9,20 @@ import html
 import ipaddress
 from datetime import datetime
 from typing import Optional, Dict, Any
+
+# Import hashing functionality with fallback
+try:
+    import hashlib
+    HASHLIB_AVAILABLE = True
+except ImportError:
+    HASHLIB_AVAILABLE = False
+    # Fallback to cryptography for hashing if hashlib is not available
+    try:
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.backends import default_backend
+        CRYPTOGRAPHY_AVAILABLE = True
+    except ImportError:
+        CRYPTOGRAPHY_AVAILABLE = False
 
 def generate_case_id(prefix: str = "SOC") -> str:
     """Generate a unique case ID with timestamp"""
@@ -31,11 +44,36 @@ def hash_file(file_path: str, algorithm: str = 'sha256') -> Optional[str]:
         return None
     
     try:
-        hash_obj = hashlib.new(algorithm)
-        with open(file_path, 'rb') as f:
-            for chunk in iter(lambda: f.read(4096), b""):
-                hash_obj.update(chunk)
-        return hash_obj.hexdigest()
+        if HASHLIB_AVAILABLE:
+            # Use built-in hashlib (preferred method)
+            hash_obj = hashlib.new(algorithm)
+            with open(file_path, 'rb') as f:
+                for chunk in iter(lambda: f.read(4096), b""):
+                    hash_obj.update(chunk)
+            return hash_obj.hexdigest()
+        
+        elif CRYPTOGRAPHY_AVAILABLE:
+            # Fallback to cryptography library
+            algorithm_map = {
+                'md5': hashes.MD5(),
+                'sha1': hashes.SHA1(),
+                'sha256': hashes.SHA256(),
+                'sha512': hashes.SHA512()
+            }
+            
+            if algorithm.lower() not in algorithm_map:
+                return None
+            
+            digest = hashes.Hash(algorithm_map[algorithm.lower()], backend=default_backend())
+            with open(file_path, 'rb') as f:
+                for chunk in iter(lambda: f.read(4096), b""):
+                    digest.update(chunk)
+            return digest.finalize().hex()
+        
+        else:
+            # No hashing libraries available
+            return None
+            
     except Exception:
         return None
 
@@ -306,8 +344,11 @@ def get_file_info(file_path: str) -> Dict[str, Any]:
             stat = os.stat(file_path)
             info['size'] = stat.st_size
             info['modified'] = datetime.fromtimestamp(stat.st_mtime).isoformat()
-            info['hash_md5'] = hash_file(file_path, 'md5')
-            info['hash_sha256'] = hash_file(file_path, 'sha256')
+            
+            # Only calculate hashes if hashing is available
+            if HASHLIB_AVAILABLE or CRYPTOGRAPHY_AVAILABLE:
+                info['hash_md5'] = hash_file(file_path, 'md5')
+                info['hash_sha256'] = hash_file(file_path, 'sha256')
     except Exception:
         pass  # Return default info if any error occurs
     
