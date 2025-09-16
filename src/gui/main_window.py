@@ -1310,28 +1310,33 @@ class SOCCaseLogger:
         self.status_var.set(f"Copied {char_count} characters to clipboard")
     
     def clear_all_text(self):
-        # Clear all text from the notes text area and input fields with confirmation
+        # Clear all text from the notes text area and all input fields with confirmation
         text_content = self.notes_text.get('1.0', tk.END).strip()
         
-        # Check if any fields have content
-        fields_have_content = (
-            text_content or
-            self.user_var.get().strip() or
-            self.role_var.get().strip() or
-            self.email_var.get().strip() or
-            self.host_var.get().strip() or
-            self.ip_var.get().strip() or
-            self.file_hash_var.get().strip() or
+        # Check if any input fields have content
+        has_field_content = any([
+            self.user_var.get().strip(),
+            self.role_var.get().strip(),
+            self.email_var.get().strip(),
+            self.host_var.get().strip(),
+            self.ip_var.get().strip(),
+            self.file_hash_var.get().strip(),
             self.url_var.get().strip()
-        )
+        ])
         
-        if not fields_have_content:
+        # Check if notes or fields have content
+        if not text_content and not has_field_content:
             self.status_var.set("All fields are already empty")
             return
         
         # Ask for confirmation
         result = messagebox.askyesno("Clear All Fields", 
-                                   "Are you sure you want to clear all text fields and notes?\n\nThis action cannot be undone.")
+                                   "Are you sure you want to clear all fields and notes?\n\n"
+                                   "This will clear:\n"
+                                   "• All input fields (User, Email, Role, Hostname, IP, File Hash, URL)\n"
+                                   "• Classification and Outcome settings\n"
+                                   "• Notes text area\n\n"
+                                   "This action cannot be undone.")
         
         if result:
             # Clear all input fields
@@ -1343,14 +1348,14 @@ class SOCCaseLogger:
             self.file_hash_var.set("")
             self.url_var.set("")
             
-            # Reset outcome fields to defaults
+            # Reset classification and outcome to defaults
             self.classification_var.set("Benign")
             self.outcome_type_var.set("False-Positive")
             
             # Clear notes text area
             self.notes_text.delete('1.0', tk.END)
             
-            # Clear current case ID to ensure new case creation on next save
+            # Clear the current case ID to ensure we create a new case when saving
             self.current_case_id = None
             
             self.status_var.set("All fields and notes cleared")
