@@ -21,7 +21,23 @@ class CaseManager:
         # Create the data directory if it doesn't exist
         data_dir = os.path.dirname(self.data_file)
         if data_dir and not os.path.exists(data_dir):
-            os.makedirs(data_dir)
+            try:
+                os.makedirs(data_dir)
+            except (OSError, PermissionError) as e:
+                # If directory creation fails, log the error but continue
+                print(f"Warning: Could not create data directory {data_dir}: {e}")
+                # Try to use a fallback location in user home
+                user_home = os.path.expanduser("~")
+                fallback_dir = os.path.join(user_home, 'SOC_Case_Logger', 'data')
+                try:
+                    os.makedirs(fallback_dir, exist_ok=True)
+                    # Update the data file path to use the fallback location
+                    filename = os.path.basename(self.data_file)
+                    self.data_file = os.path.join(fallback_dir, filename)
+                    print(f"Using fallback data directory: {fallback_dir}")
+                except (OSError, PermissionError) as fallback_error:
+                    print(f"Error: Could not create fallback directory: {fallback_error}")
+                    raise
 
     def load_cases(self):
         # Load all cases from the JSON file into memory

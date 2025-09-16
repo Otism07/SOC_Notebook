@@ -19,9 +19,25 @@ class SettingsManager:
         self.config_dir = os.path.join(self.app_dir, 'config')
         self.data_dir = os.path.join(self.app_dir, 'data')
         
-        # Ensure directories exist
-        os.makedirs(self.config_dir, exist_ok=True)
-        os.makedirs(self.data_dir, exist_ok=True)
+        # Ensure directories exist with fallback to user home directory
+        try:
+            os.makedirs(self.config_dir, exist_ok=True)
+            os.makedirs(self.data_dir, exist_ok=True)
+        except (OSError, PermissionError) as e:
+            # If we can't create directories in app folder, use user home directory
+            print(f"Warning: Could not create directories in app folder: {e}")
+            user_home = os.path.expanduser("~")
+            self.app_dir = os.path.join(user_home, 'SOC_Case_Logger')
+            self.config_dir = os.path.join(self.app_dir, 'config')
+            self.data_dir = os.path.join(self.app_dir, 'data')
+            
+            try:
+                os.makedirs(self.config_dir, exist_ok=True)
+                os.makedirs(self.data_dir, exist_ok=True)
+                print(f"Using user directory: {self.app_dir}")
+            except (OSError, PermissionError) as fallback_error:
+                print(f"Error: Could not create directories in user home: {fallback_error}")
+                raise
         
         # Define file paths for configuration storage
         self.settings_file = os.path.join(self.config_dir, 'settings.json')
@@ -66,18 +82,28 @@ class SettingsManager:
         # Initialize or load encryption key for securing API credentials
         if os.path.exists(self.key_file):
             # Load existing encryption key
-            with open(self.key_file, 'rb') as f:
-                self.key = f.read()
+            try:
+                with open(self.key_file, 'rb') as f:
+                    self.key = f.read()
+            except (OSError, PermissionError) as e:
+                print(f"Warning: Could not read encryption key file: {e}")
+                # Generate a new key if we can't read the existing one
+                self.key = Fernet.generate_key()
         else:
             # Generate new encryption key
             self.key = Fernet.generate_key()
-            with open(self.key_file, 'wb') as f:
-                f.write(self.key)
-            # Set restrictive permissions on key file (Unix-like systems only)
             try:
-                os.chmod(self.key_file, 0o600)
-            except (OSError, AttributeError):
-                # Windows doesn't support Unix-style permissions, skip silently
+                with open(self.key_file, 'wb') as f:
+                    f.write(self.key)
+                # Set restrictive permissions on key file (Unix-like systems only)
+                try:
+                    os.chmod(self.key_file, 0o600)
+                except (OSError, AttributeError):
+                    # Windows doesn't support Unix-style permissions, skip silently
+                    pass
+            except (OSError, PermissionError) as e:
+                print(f"Warning: Could not save encryption key file: {e}")
+                # Continue with in-memory key only
                 pass
         
         # Initialize the cipher for encryption/decryption
