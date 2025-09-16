@@ -14,7 +14,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Import the main GUI window
-from gui.main_window import SOCCaseLogger
+from gui.main_window import SOCNotebook
 
 def setup_logging():
     # Set up comprehensive application logging with file and console output
@@ -27,7 +27,7 @@ def setup_logging():
         except (OSError, PermissionError) as e:
             # If we can't create logs in app directory, try user home directory
             user_home = os.path.expanduser("~")
-            logs_dir = os.path.join(user_home, 'SOC_Case_Logger', 'logs')
+            logs_dir = os.path.join(user_home, 'SOC_Notebook', 'logs')
             os.makedirs(logs_dir, exist_ok=True)
     
     # Configure logging with both file and console output
@@ -50,7 +50,7 @@ def setup_logging():
     )
     
     logger = logging.getLogger(__name__)
-    logger.info("SOC Case Logger application started")
+    logger.info("SOC Notebook application started")
     return logger
 
 class ApplicationRecovery:
@@ -178,9 +178,9 @@ def main():
         except:
             pass  # Icon not found, continue without it
         
-        # Create and initialize the main application
-        logger.info("Initializing SOC Case Logger GUI")
-        app = SOCCaseLogger(root)
+                # Create and initialize the main application
+        logger.info("Initializing SOC Notebook GUI")
+        app = SOCNotebook(root)
         
         # Set up recovery for the app instance
         recovery.set_app_instance(app)
@@ -188,11 +188,11 @@ def main():
         # Configure graceful window close behavior
         def on_closing():
             try:
-                if messagebox.askokcancel("Quit", "Do you want to quit the SOC Case Logger?"):
+                if messagebox.askokcancel("Quit", "Do you want to quit the SOC Notebook?"):
                     # Attempt to save current work before closing
                     if hasattr(app, 'save_current_work'):
                         app.save_current_work()
-                    logger.info("SOC Case Logger application closed by user")
+                    logger.info("SOC Notebook application closed by user")
                     root.destroy()
             except Exception as e:
                 logger.error(f"Error during application shutdown: {e}")
@@ -209,11 +209,11 @@ def main():
             recovery.emergency_save()
             raise
         
-        logger.info("SOC Case Logger application ended normally")
+        logger.info("SOC Notebook application ended normally")
         return 0
         
     except Exception as e:
-        error_msg = f"Fatal error starting SOC Case Logger: {e}"
+        error_msg = f"Fatal error starting SOC Notebook: {e}"
         print(error_msg)
         
         # Try to show error in GUI if possible

@@ -1,9 +1,9 @@
-# SOC Case Logger - Script Documentation
+# SOC Notebook - Script Documentation
 
-This document provides comprehensive documentation for all scripts in the SOC Case Logger project, including their functions, inputs, outputs, and purposes.
+This document provides comprehensive documentation for all scripts in the SOC Notebook project, including their functions, inputs, outputs, and purposes.
 
 ## Project Overview
-SOC Case Logger is a GUI application for managing Security Operations Center (SOC) cases. It provides functionality for case creation, search, bulk IP analysis, and settings management.
+SOC Notebook is a GUI application for managing Security Operations Center (SOC) cases. It provides functionality for case creation, search, bulk IP analysis, and settings management.
 
 ---
 
@@ -18,14 +18,14 @@ SOC Case Logger is a GUI application for managing Security Operations Center (SO
   - **Output**: Absolute path to the resource
   - **Purpose**: Handle path resolution for bundled and development environments
 
-- `run_application()`: Launch the SOC Case Logger application
+- `run_application()`: Launch the SOC Notebook application
   - **Input**: None
   - **Output**: None (launches GUI application)
   - **Purpose**: Configure environment and start main application
 
 **Usage**:
 - Development: `python3 run.py`
-- Bundled: `./SOCCaseLogger.exe`
+- Bundled: `./SOCNotebook.exe`
 
 ---
 
@@ -211,7 +211,7 @@ SOC Case Logger is a GUI application for managing Security Operations Center (SO
 **Functions**:
 - `__init__(root)`: Initialize main GUI window
   - **Input**: root (tk.Tk) - Tkinter root window
-  - **Output**: SOCCaseLogger instance
+  - **Output**: SOCNotebook instance
   - **Purpose**: Set up complete GUI interface
 
 - `create_main_content(parent_frame)`: Create General tab interface

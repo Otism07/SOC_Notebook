@@ -1,4 +1,4 @@
-# SOC Case Logger Requirements
+# SOC Notebook Requirements
 # Python GUI Application for Security Operations Center Case Management
 
 # Core Python libraries (usually included with Python)
@@ -36,4 +36,4 @@ flake8>=3.8.0  # For linting
 
 # Note: This application is designed to work with Python's built-in libraries
 # The optional dependencies above can enhance functionality but are not required
-# for basic operation of the SOC Case Logger.
+# for basic operation of the SOC Notebook.

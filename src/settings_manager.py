@@ -27,7 +27,7 @@ class SettingsManager:
             # If we can't create directories in app folder, use user home directory
             print(f"Warning: Could not create directories in app folder: {e}")
             user_home = os.path.expanduser("~")
-            self.app_dir = os.path.join(user_home, 'SOC_Case_Logger')
+            self.app_dir = os.path.join(user_home, 'SOC_Notebook')
             self.config_dir = os.path.join(self.app_dir, 'config')
             self.data_dir = os.path.join(self.app_dir, 'data')
             

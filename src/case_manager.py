@@ -28,7 +28,7 @@ class CaseManager:
                 print(f"Warning: Could not create data directory {data_dir}: {e}")
                 # Try to use a fallback location in user home
                 user_home = os.path.expanduser("~")
-                fallback_dir = os.path.join(user_home, 'SOC_Case_Logger', 'data')
+                fallback_dir = os.path.join(user_home, 'SOC_Notebook', 'data')
                 try:
                     os.makedirs(fallback_dir, exist_ok=True)
                     # Update the data file path to use the fallback location

@@ -1,4 +1,4 @@
-# SOC Case Logger
+# SOC Notebook
 
 A comprehensive Python-based GUI application for Security Operations Center (SOC) analysts to document, track, and manage security incidents and investigations. Built with modern Python practices, secure credential management, and integration with leading threat intelligence platforms.
 
@@ -40,10 +40,10 @@ pip install requests>=2.25.0 cryptography>=3.0.0 pandas>=1.3.0 loguru>=0.6.0 jso
 ```
 
 ### Quick Setup
-1. **Clone or download** the SOC Case Logger files
+1. **Clone or download** the SOC Notebook files
 2. **Navigate** to the project directory:
    ```bash
-   cd soc-case-logger
+   cd soc-notebook
    ```
 3. **Install dependencies**:
    ```bash
@@ -98,7 +98,7 @@ pip install requests>=2.25.0 cryptography>=3.0.0 pandas>=1.3.0 loguru>=0.6.0 jso
 
 ## File Structure
 ```
-soc-case-logger/
+soc-notebook/
 ├── src/                    # Source code
 │   ├── gui/               # User interface
 │   ├── models/            # Data models

@@ -21,29 +21,15 @@ def create_colored_button(parent, text, command, button_type='default', **kwargs
     # Create a standard button without custom coloring
     return ttk.Button(parent, text=text, command=command, **kwargs)
 
-class SOCCaseLogger:
+class SOCNotebook:
     # Main GUI application for SOC (Security Operations Center) case logging
     # Provides a tabbed interface for case management, search functionality, and settings
     
     def __init__(self, root):
-        # Initialize the SOC Case Logger application
+        # Initialize the SOC Notebook application
         self.root = root
-        self.root.title("SOC Case Logger")
+        self.root.title("SOC Notebook")
         self.root.geometry("950x850")
-        
-        # Set application icon (for both window and taskbar)
-        try:
-            # Get the path to the icon file (in the root directory)
-            icon_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'icon.ico')
-            if os.path.exists(icon_path):
-                # Set icon for window title bar and taskbar
-                self.root.iconbitmap(icon_path)
-                # On some systems, also set wm_iconbitmap for better compatibility
-                self.root.wm_iconbitmap(icon_path)
-            else:
-                print(f"Warning: Icon file not found at {icon_path}")
-        except Exception as e:
-            print(f"Warning: Could not load application icon: {e}")
         
         # Initialize settings manager first (handles configuration and API keys)
         self.settings_manager = SettingsManager()
@@ -1988,9 +1974,9 @@ class SOCCaseLogger:
                 self.bulk_ip_text.configure(font=("Consolas", 10))
 
 def main():
-    # Initialize and run the SOC Case Logger application
+    # Initialize and run the SOC Notebook application
     root = tk.Tk()
-    app = SOCCaseLogger(root)
+    app = SOCNotebook(root)
     root.mainloop()
 
 if __name__ == "__main__":

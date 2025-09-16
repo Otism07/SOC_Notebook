@@ -16,7 +16,7 @@ def get_resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 def run_application():
-    # Launch the SOC Case Logger application
+    # Launch the SOC Notebook application
     
     # Determine execution environment and launch accordingly
     if getattr(sys, 'frozen', False):
@@ -32,7 +32,7 @@ def run_application():
             # Import and run the main application directly
             from src.main import main as app_main
             
-            print("Starting SOC Case Logger (bundled version)...")
+            print("Starting SOC Notebook (bundled version)...")
             return app_main()
             
         except ImportError as e:
@@ -58,7 +58,7 @@ def run_application():
         src_dir = os.path.join(script_dir, 'src')
         
         try:
-            print("Starting SOC Case Logger (development mode)...")
+            print("Starting SOC Notebook (development mode)...")
             print(f"Working directory: {src_dir}")
             
             # Launch the application as a subprocess

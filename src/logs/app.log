@@ -10,3 +10,10 @@
 2025-09-13 00:29:46,103 - __main__ - INFO - SOC Case Logger application ended normally
 2025-09-15 10:25:24,460 - __main__ - INFO - SOC Case Logger application started
 2025-09-15 10:25:24,709 - __main__ - INFO - Initializing SOC Case Logger GUI
+2025-09-16 10:09:32,900 - __main__ - INFO - SOC Case Logger application started
+2025-09-16 10:09:33,052 - __main__ - INFO - Initializing SOC Case Logger GUI
+2025-09-16 10:13:49,792 - __main__ - INFO - SOC Notebook application started
+2025-09-16 10:13:49,961 - __main__ - INFO - Initializing SOC Notebook GUI
+2025-09-16 10:13:50,078 - __main__ - INFO - Starting main application loop
+2025-09-16 10:15:07,640 - __main__ - INFO - SOC Notebook application closed by user
+2025-09-16 10:15:07,655 - __main__ - INFO - SOC Notebook application ended normally
