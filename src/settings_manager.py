@@ -19,8 +19,9 @@ class SettingsManager:
         self.config_dir = os.path.join(self.app_dir, 'config')
         self.data_dir = os.path.join(self.app_dir, 'data')
         
-        # Ensure directories exist with Windows compatibility
-        self._ensure_directories()
+        # Ensure directories exist
+        os.makedirs(self.config_dir, exist_ok=True)
+        os.makedirs(self.data_dir, exist_ok=True)
         
         # Define file paths for configuration storage
         self.settings_file = os.path.join(self.config_dir, 'settings.json')
@@ -61,73 +62,26 @@ class SettingsManager:
         # Load existing settings or create defaults
         self.settings = self.load_settings()
     
-    def _ensure_directories(self):
-        # Ensure necessary directories exist with Windows compatibility
-        directories_to_create = [
-            (self.config_dir, "configuration"),
-            (self.data_dir, "data")
-        ]
-        
-        for directory, purpose in directories_to_create:
-            try:
-                os.makedirs(directory, exist_ok=True)
-            except (PermissionError, OSError) as e:
-                # Try alternative location in user directory if main location fails
-                user_home = os.path.expanduser("~")
-                alt_directory = os.path.join(user_home, 'SOC_Case_Logger', purpose)
-                
-                try:
-                    os.makedirs(alt_directory, exist_ok=True)
-                    # Update the directory path to use the alternative location
-                    if purpose == "configuration":
-                        self.config_dir = alt_directory
-                        self.settings_file = os.path.join(self.config_dir, 'settings.json')
-                        self.credentials_file = os.path.join(self.config_dir, 'credentials.enc')
-                        self.key_file = os.path.join(self.config_dir, '.key')
-                    elif purpose == "data":
-                        self.data_dir = alt_directory
-                except (PermissionError, OSError):
-                    # Final fallback - use current working directory
-                    fallback_dir = os.path.join(os.getcwd(), f'soc_case_logger_{purpose}')
-                    try:
-                        os.makedirs(fallback_dir, exist_ok=True)
-                        if purpose == "configuration":
-                            self.config_dir = fallback_dir
-                            self.settings_file = os.path.join(self.config_dir, 'settings.json')
-                            self.credentials_file = os.path.join(self.config_dir, 'credentials.enc')
-                            self.key_file = os.path.join(self.config_dir, '.key')
-                        elif purpose == "data":
-                            self.data_dir = fallback_dir
-                    except (PermissionError, OSError):
-                        raise RuntimeError(f"Cannot create {purpose} directory. Please run as administrator or choose a different location.")
-    
     def _init_encryption(self):
         # Initialize or load encryption key for securing API credentials
-        try:
-            if os.path.exists(self.key_file):
-                # Load existing encryption key
-                with open(self.key_file, 'rb') as f:
-                    self.key = f.read()
-            else:
-                # Generate new encryption key
-                self.key = Fernet.generate_key()
-                with open(self.key_file, 'wb') as f:
-                    f.write(self.key)
-                # Set restrictive permissions on key file (Unix-like systems)
-                try:
-                    os.chmod(self.key_file, 0o600)
-                except OSError:
-                    # Windows doesn't support chmod in the same way, skip this
-                    pass
-            
-            # Initialize the cipher for encryption/decryption
-            self.cipher = Fernet(self.key)
-            
-        except (PermissionError, OSError) as e:
-            # If we can't create/read encryption files, disable encryption
-            print(f"Warning: Could not initialize encryption: {e}")
-            self.key = None
-            self.cipher = None
+        if os.path.exists(self.key_file):
+            # Load existing encryption key
+            with open(self.key_file, 'rb') as f:
+                self.key = f.read()
+        else:
+            # Generate new encryption key
+            self.key = Fernet.generate_key()
+            with open(self.key_file, 'wb') as f:
+                f.write(self.key)
+            # Set restrictive permissions on key file (Unix-like systems only)
+            try:
+                os.chmod(self.key_file, 0o600)
+            except (OSError, AttributeError):
+                # Windows doesn't support Unix-style permissions, skip silently
+                pass
+        
+        # Initialize the cipher for encryption/decryption
+        self.cipher = Fernet(self.key)
 
     def load_settings(self):
         # Load application settings from file or return defaults
@@ -176,7 +130,7 @@ class SettingsManager:
     
     def load_api_credentials(self):
         # Load and decrypt API credentials from secure storage.
-        if not os.path.exists(self.credentials_file) or not self.cipher:
+        if not os.path.exists(self.credentials_file):
             return {"abuseipdb_api_key": "", "virustotal_api_key": ""}
         
         try:
@@ -199,11 +153,6 @@ class SettingsManager:
     def save_api_credentials(self, credentials):
         # Encrypt and save API credentials to secure storage.
         try:
-            # Check if encryption is available
-            if not self.cipher:
-                print("Warning: Encryption not available, credentials will not be saved")
-                return False
-                
             # Ensure only valid credentials are saved
             valid_creds = {
                 "abuseipdb_api_key": credentials.get("abuseipdb_api_key", ""),
@@ -218,11 +167,11 @@ class SettingsManager:
             with open(self.credentials_file, 'wb') as f:
                 f.write(encrypted_data)
             
-            # Set restrictive permissions (Unix-like systems)
+            # Set restrictive permissions (Unix-like systems only)
             try:
                 os.chmod(self.credentials_file, 0o600)
-            except OSError:
-                # Windows doesn't support chmod in the same way, skip this
+            except (OSError, AttributeError):
+                # Windows doesn't support Unix-style permissions, skip silently
                 pass
             return True
             
