@@ -31,6 +31,20 @@ class SOCCaseLogger:
         self.root.title("SOC Case Logger")
         self.root.geometry("950x850")
         
+        # Set application icon (for both window and taskbar)
+        try:
+            # Get the path to the icon file (in the root directory)
+            icon_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'icon.ico')
+            if os.path.exists(icon_path):
+                # Set icon for window title bar and taskbar
+                self.root.iconbitmap(icon_path)
+                # On some systems, also set wm_iconbitmap for better compatibility
+                self.root.wm_iconbitmap(icon_path)
+            else:
+                print(f"Warning: Icon file not found at {icon_path}")
+        except Exception as e:
+            print(f"Warning: Could not load application icon: {e}")
+        
         # Initialize settings manager first (handles configuration and API keys)
         self.settings_manager = SettingsManager()
         
