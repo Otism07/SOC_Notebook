@@ -19,20 +19,36 @@ from gui.main_window import SOCCaseLogger
 def setup_logging():
     # Set up comprehensive application logging with file and console output
     
-    # Create logs directory if it doesn't exist
+    # Create logs directory if it doesn't exist (with Windows compatibility)
     logs_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logs')
-    if not os.path.exists(logs_dir):
-        os.makedirs(logs_dir)
     
-    # Configure logging with both file and console output
-    log_file = os.path.join(logs_dir, 'app.log')
+    try:
+        if not os.path.exists(logs_dir):
+            os.makedirs(logs_dir)
+        log_file = os.path.join(logs_dir, 'app.log')
+    except (PermissionError, OSError) as e:
+        # Fallback to user directory if we can't create logs in app directory
+        try:
+            user_home = os.path.expanduser("~")
+            logs_dir = os.path.join(user_home, 'SOC_Case_Logger', 'logs')
+            os.makedirs(logs_dir, exist_ok=True)
+            log_file = os.path.join(logs_dir, 'app.log')
+        except (PermissionError, OSError):
+            # Final fallback - no file logging, just console
+            log_file = None
+    
+    # Configure logging with console output and file output if possible
+    handlers = [logging.StreamHandler(sys.stdout)]
+    if log_file:
+        try:
+            handlers.append(logging.FileHandler(log_file))
+        except (PermissionError, OSError):
+            print("Warning: Could not create log file, using console logging only")
+    
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler(sys.stdout)
-        ]
+        handlers=handlers
     )
     
     logger = logging.getLogger(__name__)
@@ -95,26 +111,40 @@ class ApplicationRecovery:
                 self.app_instance.emergency_save()
                 self.logger.info("Emergency save completed")
             else:
-                # Create a basic emergency save file
-                emergency_file = os.path.join(
-                    os.path.dirname(os.path.dirname(__file__)), 
-                    'data', 
-                    f'emergency_backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
-                )
-                
+                # Create a basic emergency save file with Windows-compatible paths
                 emergency_data = {
                     'timestamp': datetime.now().isoformat(),
                     'message': 'Emergency backup created due to application crash',
                     'recovery_instructions': 'Restart the application and check recent cases'
                 }
                 
-                # Ensure data directory exists
-                os.makedirs(os.path.dirname(emergency_file), exist_ok=True)
-                with open(emergency_file, 'w') as f:
-                    import json
-                    json.dump(emergency_data, f, indent=2)
+                # Try multiple locations for emergency save
+                emergency_locations = [
+                    os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data'),
+                    os.path.join(os.path.expanduser("~"), 'SOC_Case_Logger', 'emergency'),
+                    os.path.join(os.path.expanduser("~"), 'Desktop'),
+                    os.getcwd()  # Current working directory as last resort
+                ]
                 
-                self.logger.info(f"Emergency backup created: {emergency_file}")
+                saved = False
+                for location in emergency_locations:
+                    try:
+                        os.makedirs(location, exist_ok=True)
+                        emergency_file = os.path.join(location, f'emergency_backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json')
+                        
+                        with open(emergency_file, 'w') as f:
+                            import json
+                            json.dump(emergency_data, f, indent=2)
+                        
+                        self.logger.info(f"Emergency backup created: {emergency_file}")
+                        saved = True
+                        break
+                    except (PermissionError, OSError):
+                        continue
+                
+                if not saved:
+                    self.logger.warning("Could not create emergency backup file - no writable location found")
+                    
         except Exception as e:
             self.logger.error(f"Emergency save failed: {e}")
             # Don't let save failure cause another crash
