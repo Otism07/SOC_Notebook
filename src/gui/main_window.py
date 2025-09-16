@@ -177,9 +177,9 @@ class SOCCaseLogger:
         ttk.Label(outcome_frame, text="Type:").pack(anchor=tk.W, padx=5, pady=(5,0))
         self.outcome_type_var = tk.StringVar()
         outcome_type_combo = ttk.Combobox(outcome_frame, textvariable=self.outcome_type_var, width=25, state='readonly')
-        outcome_type_combo['values'] = ('False-Positive', 'Blocked-True Positive', 'Malicious-True Positive', 'Benign-True Positive')
+        outcome_type_combo['values'] = ('Benign-True Positive', 'Blocked-True Positive', 'Malicious-True Positive', 'False-Positive')
         outcome_type_combo.pack(padx=5, pady=2)
-        outcome_type_combo.set('False-Positive')
+        outcome_type_combo.set('Benign-True Positive')
         
         # Add button
         ttk.Button(outcome_frame, text="Add", width=10, command=self.add_outcome_to_notes).pack(pady=10)
@@ -1392,7 +1392,7 @@ class SOCCaseLogger:
             # Collect all case data into structured format compatible with Case class
             case_data = {
                 "case_id": case_id,
-                "title": "",  # Add title field for Case class compatibility
+                "title": "",
                 "description": self.notes_text.get('1.0', tk.END).rstrip('\n'),  # Use notes as description
                 "user": self.user_var.get().strip(),
                 "role": self.role_var.get().strip(),
@@ -1400,26 +1400,12 @@ class SOCCaseLogger:
                 "host": self.host_var.get().strip(),  # Changed from hostname to host
                 "ip_address": self.ip_var.get().strip(),
                 "file_hash": self.file_hash_var.get().strip(),
+                "classification": self.classification_var.get(),
+                "outcome_type": self.outcome_type_var.get(),
                 "outcome": f"{self.classification_var.get()}, {self.outcome_type_var.get()}",  # Combine classification and type
                 "status": "completed",
                 "created_at": created_at,  # Preserve original creation time for updates
                 "updated_at": timestamp.isoformat(),  # Always update the modification time
-                # Keep legacy fields for backward compatibility
-                "timestamp": timestamp.isoformat(),
-                "created_date": timestamp.strftime('%Y-%m-%d %H:%M:%S'),
-                "details": {
-                    "user": self.user_var.get().strip(),
-                    "role": self.role_var.get().strip(),
-                    "email": self.email_var.get().strip(),
-                    "hostname": self.host_var.get().strip(),
-                    "ip_address": self.ip_var.get().strip(),
-                    "file_hash": self.file_hash_var.get().strip(),
-                    "url": self.url_var.get().strip()
-                },
-                "outcome_details": {
-                    "classification": self.classification_var.get(),
-                    "outcome_type": self.outcome_type_var.get()
-                },
                 "notes": self.notes_text.get('1.0', tk.END).rstrip('\n')
             }
             
@@ -1434,7 +1420,7 @@ class SOCCaseLogger:
             with open(case_filepath, 'w', encoding='utf-8') as f:
                 json.dump(case_data, f, indent=2, ensure_ascii=False)
             
-            # Also update the main cases.json file for compatibility
+            # Update the main cases.json file
             cases_filepath = os.path.join(data_folder, 'cases.json')
             
             # Read existing cases
@@ -1546,10 +1532,9 @@ class SOCCaseLogger:
                 date = case.created_at[:10] if case.created_at else 'N/A'  # Just date part
                 user = case.user or 'N/A'
                 
-                # Parse classification and outcome from combined outcome field
-                outcome_parts = case.outcome.split(',') if case.outcome else ['N/A', 'N/A']
-                classification = outcome_parts[0].strip() if len(outcome_parts) > 0 else 'N/A'
-                outcome_type = outcome_parts[1].strip() if len(outcome_parts) > 1 else 'N/A'
+                # Use direct classification and outcome_type fields
+                classification = case.classification or 'N/A'
+                outcome_type = case.outcome_type or 'N/A'
                 
                 notes = case.notes or ''
 
@@ -1604,8 +1589,8 @@ class SOCCaseLogger:
             'IP Address': case_obj.ip_address or '',
             'File Hash': case_obj.file_hash or '',
             'URL': '',  # URL not stored in Case object currently
-            'Classification': case_obj.outcome.split(',')[0].strip() if case_obj.outcome else '',
-            'Outcome Type': case_obj.outcome.split(',')[1].strip() if case_obj.outcome and ',' in case_obj.outcome else '',
+            'Classification': case_obj.classification or '',
+            'Outcome Type': case_obj.outcome_type or '',
             'Notes': case_obj.notes or ''
         }
         
@@ -1623,15 +1608,14 @@ class SOCCaseLogger:
             # Search in all text fields
             searchable_text = ' '.join([
                 case.get('case_id', ''),
-                case.get('details', {}).get('user', ''),
-                case.get('details', {}).get('email', ''),
-                case.get('details', {}).get('role', ''),
-                case.get('details', {}).get('hostname', ''),
-                case.get('details', {}).get('ip_address', ''),
-                case.get('details', {}).get('file_hash', ''),
-                case.get('details', {}).get('url', ''),
-                case.get('outcome', {}).get('classification', ''),
-                case.get('outcome', {}).get('outcome_type', ''),
+                case.get('user', ''),
+                case.get('email', ''),
+                case.get('role', ''),
+                case.get('host', ''),
+                case.get('ip_address', ''),
+                case.get('file_hash', ''),
+                case.get('classification', ''),
+                case.get('outcome_type', ''),
                 case.get('notes', '')
             ]).lower()
             return search_term in searchable_text
@@ -1639,14 +1623,14 @@ class SOCCaseLogger:
         # Search in specific field
         field_mapping = {
             'Case ID': case.get('case_id', ''),
-            'User': case.get('details', {}).get('user', ''),
-            'Email': case.get('details', {}).get('email', ''),
-            'Hostname': case.get('details', {}).get('hostname', ''),
-            'IP Address': case.get('details', {}).get('ip_address', ''),
-            'File Hash': case.get('details', {}).get('file_hash', ''),
-            'URL': case.get('details', {}).get('url', ''),
-            'Classification': case.get('outcome', {}).get('classification', ''),
-            'Outcome Type': case.get('outcome', {}).get('outcome_type', ''),
+            'User': case.get('user', ''),
+            'Email': case.get('email', ''),
+            'Hostname': case.get('host', ''),
+            'IP Address': case.get('ip_address', ''),
+            'File Hash': case.get('file_hash', ''),
+            'URL': '',  # URL not stored in modern format
+            'Classification': case.get('classification', ''),
+            'Outcome Type': case.get('outcome_type', ''),
             'Notes': case.get('notes', '')
         }
         
@@ -1679,10 +1663,9 @@ class SOCCaseLogger:
                 date = case.created_at[:10] if case.created_at else 'N/A'
                 user = case.user or 'N/A'
                 
-                # Parse classification and outcome from combined outcome field
-                outcome_parts = case.outcome.split(',') if case.outcome else ['N/A', 'N/A']
-                classification = outcome_parts[0].strip() if len(outcome_parts) > 0 else 'N/A'
-                outcome_type = outcome_parts[1].strip() if len(outcome_parts) > 1 else 'N/A'
+                # Use direct classification and outcome_type fields
+                classification = case.classification or 'N/A'
+                outcome_type = case.outcome_type or 'N/A'
                 
                 notes = case.notes or ''
 
@@ -1748,13 +1731,8 @@ class SOCCaseLogger:
         
         # Outcome
         details.append("=== OUTCOME ===")
-        if case_obj.outcome and ',' in case_obj.outcome:
-            outcome_parts = case_obj.outcome.split(',')
-            classification = outcome_parts[0].strip()
-            outcome_type = outcome_parts[1].strip() if len(outcome_parts) > 1 else 'N/A'
-        else:
-            classification = case_obj.outcome or 'N/A'
-            outcome_type = 'N/A'
+        classification = case_obj.classification or 'N/A'
+        outcome_type = case_obj.outcome_type or 'N/A'
         
         details.append(f"Classification: {classification}")
         details.append(f"Outcome Type: {outcome_type}")
@@ -1773,26 +1751,23 @@ class SOCCaseLogger:
         
         details = []
         details.append(f"Case ID: {case.get('case_id', 'N/A')}")
-        details.append(f"Date: {case.get('created_date', 'N/A')}")
+        details.append(f"Date: {case.get('created_at', 'N/A')[:10] if case.get('created_at') else 'N/A'}")
         details.append("")
         
-        # Case details
-        case_details = case.get('details', {})
+        # Case details - use direct fields instead of nested details object
         details.append("=== CASE DETAILS ===")
-        details.append(f"User: {case_details.get('user', 'N/A')}")
-        details.append(f"Role: {case_details.get('role', 'N/A')}")
-        details.append(f"Email: {case_details.get('email', 'N/A')}")
-        details.append(f"Hostname: {case_details.get('hostname', 'N/A')}")
-        details.append(f"IP Address: {case_details.get('ip_address', 'N/A')}")
-        details.append(f"File Hash: {case_details.get('file_hash', 'N/A')}")
-        details.append(f"URL: {case_details.get('url', 'N/A')}")
+        details.append(f"User: {case.get('user', 'N/A')}")
+        details.append(f"Role: {case.get('role', 'N/A')}")
+        details.append(f"Email: {case.get('email', 'N/A')}")
+        details.append(f"Hostname: {case.get('host', 'N/A')}")
+        details.append(f"IP Address: {case.get('ip_address', 'N/A')}")
+        details.append(f"File Hash: {case.get('file_hash', 'N/A')}")
         details.append("")
         
-        # Outcome
-        outcome = case.get('outcome', {})
+        # Outcome - use direct classification and outcome_type fields
         details.append("=== OUTCOME ===")
-        details.append(f"Classification: {outcome.get('classification', 'N/A')}")
-        details.append(f"Outcome Type: {outcome.get('outcome_type', 'N/A')}")
+        details.append(f"Classification: {case.get('classification', 'N/A')}")
+        details.append(f"Outcome Type: {case.get('outcome_type', 'N/A')}")
         details.append("")
 
         # Notes
@@ -1822,16 +1797,9 @@ class SOCCaseLogger:
         self.file_hash_var.set(case.file_hash or '')
         self.url_var.set('')  # URL not stored in Case object currently
         
-        # Parse outcome into classification and type
-        if case.outcome and ',' in case.outcome:
-            outcome_parts = case.outcome.split(',')
-            classification = outcome_parts[0].strip()
-            outcome_type = outcome_parts[1].strip() if len(outcome_parts) > 1 else 'False-Positive'
-            self.classification_var.set(classification)
-            self.outcome_type_var.set(outcome_type)
-        else:
-            self.classification_var.set(case.outcome or 'Benign')
-            self.outcome_type_var.set('False-Positive')
+        # Set classification and outcome type directly from case fields
+        self.classification_var.set(case.classification or 'Benign')
+        self.outcome_type_var.set(case.outcome_type or 'False-Positive')
 
         # Load notes
         self.notes_text.delete('1.0', tk.END)
@@ -1895,38 +1863,18 @@ class SOCCaseLogger:
         self.host_var.set(case.host)
         self.ip_var.set(case.ip_address)
         self.file_hash_var.set(case.file_hash)
-        # For backward compatibility, try to parse the old outcome format
-        if hasattr(case, 'outcome') and case.outcome:
-            # Try to split the outcome if it contains a comma
-            if ',' in case.outcome:
-                parts = [part.strip() for part in case.outcome.split(',')]
-                if len(parts) >= 2:
-                    self.classification_var.set(parts[0])
-                    self.outcome_type_var.set(parts[1])
-                else:
-                    # Default values if parsing fails
-                    self.classification_var.set("Benign")
-                    self.outcome_type_var.set("False-Positive")
-            else:
-                # Map old values to new format
-                if case.outcome == "Normal Activity":
-                    self.classification_var.set("Benign")
-                    self.outcome_type_var.set("Benign-True Positive")
-                elif case.outcome == "Suspicious Activity":
-                    self.classification_var.set("Suspicious")
-                    self.outcome_type_var.set("Blocked-True Positive")
-                elif case.outcome == "Incident Confirmed":
-                    self.classification_var.set("Malicious")
-                    self.outcome_type_var.set("Malicious-True Positive")
-                elif case.outcome == "False Positive":
-                    self.classification_var.set("Benign")
-                    self.outcome_type_var.set("False-Positive")
-                else:
-                    self.classification_var.set("Benign")
-                    self.outcome_type_var.set("False-Positive")
+        
+        # Set classification and outcome type from case object
+        if hasattr(case, 'classification') and case.classification:
+            self.classification_var.set(case.classification)
         else:
             self.classification_var.set("Benign")
+            
+        if hasattr(case, 'outcome_type') and case.outcome_type:
+            self.outcome_type_var.set(case.outcome_type)
+        else:
             self.outcome_type_var.set("False-Positive")
+            
         self.notes_text.delete('1.0', tk.END)
         if hasattr(case, 'notes') and case.notes:
             self.notes_text.insert('1.0', case.notes)

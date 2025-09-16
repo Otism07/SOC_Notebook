@@ -222,7 +222,32 @@ class SettingsManager:
     
     def get_data_directory(self):
         # Get the directory where case files should be saved.
-        return self.get_setting("data_export", "save_location") or self.data_dir
+        # Returns either user-configured path or default, ensuring it exists
+        configured_path = self.get_setting("data_export", "save_location")
+        
+        if configured_path and configured_path.strip():
+            # User has configured a custom path
+            target_dir = configured_path.strip()
+            
+            # Check if the configured directory exists and is writable
+            if os.path.exists(target_dir):
+                try:
+                    # Test write permission
+                    test_file = os.path.join(target_dir, '.write_test')
+                    with open(test_file, 'w') as f:
+                        f.write('test')
+                    os.remove(test_file)
+                    return target_dir
+                except (OSError, PermissionError):
+                    # Directory exists but not writable, fall back to default
+                    print(f"Warning: Configured directory {target_dir} is not writable, using default")
+                    pass
+            else:
+                # Directory doesn't exist, fall back to default
+                print(f"Warning: Configured directory {target_dir} does not exist, using default")
+        
+        # Return default directory (self.data_dir should always be valid from __init__)
+        return self.data_dir
     
     def should_create_new_file(self, current_case_count):
         # Check if a new JSON file should be created based on retention limit.

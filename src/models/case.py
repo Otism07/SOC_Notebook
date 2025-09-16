@@ -4,17 +4,16 @@ from typing import Optional
 
 class Case:
     # Represents a single SOC (Security Operations Center) case
-    # Contains all relevant information about a security incident or investigation,
-    # including case details, user information, and timestamps
+    # Contains all relevant information about a security incident or investigation
     
     def __init__(self, case_id: str = "", title: str = "", description: str = "", 
                  user: str = "", role: str = "", email: str = "", 
                  host: str = "", ip_address: str = "", file_hash: str = "",
-                 outcome: str = "Normal Activity", status: str = "Open",
+                 classification: str = "Benign", outcome_type: str = "False-Positive",
+                 outcome: str = "", status: str = "Open",
                  created_at: Optional[str] = None, updated_at: Optional[str] = None,
-                 **kwargs):
+                 notes: str = ""):
         # Initialize a new Case instance
-        # **kwargs allows for backward compatibility with old JSON format
         self.case_id = case_id
         self.title = title
         self.description = description
@@ -29,19 +28,16 @@ class Case:
         self.ip_address = ip_address
         self.file_hash = file_hash
         
-        # Case status and outcome
-        self.outcome = outcome
+        # Case classification and outcome
+        self.classification = classification
+        self.outcome_type = outcome_type
+        self.outcome = outcome  # Keep for compatibility but use classification/outcome_type primarily
         self.status = status
+        self.notes = notes
         
-        # Timestamps - auto-generate if not provided
+        # Auto-generate timestamps if not provided
         self.created_at = created_at or datetime.now().isoformat()
         self.updated_at = updated_at or datetime.now().isoformat()
-        
-        # Store additional fields from old format for backward compatibility
-        self.notes = kwargs.get('notes', '')
-        
-        # Ignore other fields like 'timestamp', 'created_date', 'details', 'outcome_details'
-        # that might be present in legacy JSON data
 
     def update_timestamp(self):
         # Update the last modified timestamp to current time
@@ -59,19 +55,20 @@ class Case:
             'host': self.host,
             'ip_address': self.ip_address,
             'file_hash': self.file_hash,
+            'classification': self.classification,
+            'outcome_type': self.outcome_type,
             'outcome': self.outcome,
             'status': self.status,
             'created_at': self.created_at,
             'updated_at': self.updated_at,
-            'notes': getattr(self, 'notes', '')
+            'notes': self.notes
         }
 
     @classmethod
     def from_dict(cls, data):
         # Create a Case instance from a dictionary (for JSON deserialization)
-        # Handle backward compatibility with different JSON formats
         
-        # Extract only the fields that the __init__ method expects
+        # Extract fields that the __init__ method expects
         init_fields = {
             'case_id': data.get('case_id', ''),
             'title': data.get('title', ''),
@@ -82,7 +79,9 @@ class Case:
             'host': data.get('host', ''),
             'ip_address': data.get('ip_address', ''),
             'file_hash': data.get('file_hash', ''),
-            'outcome': data.get('outcome', 'Normal Activity'),
+            'classification': data.get('classification', 'Benign'),
+            'outcome_type': data.get('outcome_type', 'False-Positive'),
+            'outcome': data.get('outcome', ''),
             'status': data.get('status', 'Open'),
             'created_at': data.get('created_at'),
             'updated_at': data.get('updated_at'),
